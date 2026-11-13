@@ -69,6 +69,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
+var APP_VER = "1.6";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
 var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
 var DISHES = [
@@ -242,6 +243,7 @@ function netInit(){
     netSub("lb/+");
     netSub("req/" + NET.id);
     netSub("dm/" + NET.id);
+    netSub(backupTopic());
     if (S.online.room && S.online.room.mine){
       if (!S.online.room.code) S.online.room.code = randCode(5);
       S.online.room.live = true;
@@ -251,6 +253,7 @@ function netInit(){
       nameJoin(S.online.room.code);
     }
     netPublishLb();
+    setTimeout(function(){ pushBackup(true); }, 1500);
     if (cur === "online" || cur === "room" || cur === "leaderboard") render();
   });
   NET.c.on("close", function(){ if (NET.state === "on"){ NET.state = "off"; netRender(); } });
@@ -329,6 +332,7 @@ function netMessage(t, m){
     if (cur === "leaderboard") netRender();
     return;
   }
+  if (parts[0] === "save"){ netSave(m); return; }
   if (parts[0] !== "rooms") return;
   var code = parts[1], kind = parts[2];
   if (kind === "meta"){
@@ -358,7 +362,7 @@ function netPresence(m){
 function netChat(m){
   if (!m || m.id === NET.id) return;
   S.online.msgs.push({n:m.n || "صاحبتي", mine:false, audio:m.a || "", dur:m.d || 0, t:m.t || "", peer:""});
-  if (S.online.msgs.length > 40) S.online.msgs.shift();
+  if (S.online.msgs.length > 300) S.online.msgs.shift();
   if (cur !== "chat" || S.online.chatId) S.online.unread = (S.online.unread || 0) + 1;
   save();
   sfx("bell");
@@ -489,12 +493,137 @@ function netDm(m){
   if (!m || m.id === NET.id) return;
   if (S.online.blocked.indexOf(m.n) >= 0) return;
   S.online.msgs.push({n:m.n || "صاحبتي", mine:false, audio:m.a || "", dur:m.d || 0, t:m.t || "", peer:m.id || ""});
-  if (S.online.msgs.length > 60) S.online.msgs.shift();
+  if (S.online.msgs.length > 300) S.online.msgs.shift();
   S.online.unread = (S.online.unread || 0) + 1;
   save();
   sfx("bell");
   toast("رسالة جديدة من " + (m.n || "صاحبتك"));
   netRender();
+}
+
+
+/* ===== الحفظ والنسخة الاحتياطية والمزامنة ===== */
+function backupKey(){
+  var n = String(S.online.nick || "waad").toLowerCase().replace(/\s+/g," ");
+  return hashPass(n);
+}
+function backupTopic(){ return "save/" + backupKey(); }
+function backupPayload(){
+  var c = JSON.parse(JSON.stringify(S));
+  delete c.net;
+  delete c.remoteSave;
+  if (c.online){
+    c.online.rooms = [];
+    c.online.view = null;
+    var ms = [];
+    for (var i=0;i<(c.online.msgs||[]).length;i++){
+      var m = c.online.msgs[i];
+      if (!m || m.audio) continue;
+      ms.push({n:m.n, mine:!!m.mine, t:m.t||"", peer:m.peer||""});
+    }
+    c.online.msgs = ms.slice(-120);
+  }
+  return {at:Date.now(), ver:APP_VER, nick:S.online.nick || "", d:c};
+}
+function pushBackup(force){
+  if (NET.state !== "on") return;
+  var now = Date.now();
+  if (!force && now - (S.backupAt || 0) < 60000) return;
+  var p = backupPayload();
+  S.backupAt = now;
+  try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){}
+  netPublishRetain(backupTopic(), p);
+  if (force){ toast("اتحفظت نسخة على حسابك"); say("اتحفظت نسخة على حسابك"); }
+}
+function netSave(m){
+  if (!m || !m.d || !m.at) return;
+  if (m.at <= (S.backupAt || 0)) return;
+  if (m.at <= (S.restoredAt || 0)) return;
+  S.remoteSave = {at:m.at, nick:m.nick || "", d:m.d};
+  try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){}
+  toast("في نسخة محفوظة أحدث على حسابك — تقدري ترجعيها من الإعدادات");
+  sfx("bell");
+  if (cur === "home" || cur === "settings") render();
+}
+function restoreSave(){
+  var r = S.remoteSave;
+  if (!r || !r.d){ toast("مفيش نسخة محفوظة على حسابك"); return; }
+  var keep = {net:S.net, readerMode:S.readerMode, readerManual:S.readerManual,
+              voiceHelp:S.voiceHelp, bigText:S.bigText, muted:S.muted, updateVer:S.updateVer,
+              updateUrl:S.updateUrl, updateChecked:S.updateChecked};
+  S = deepMerge(defState(), r.d);
+  for (var k in keep){ if (keep[k] !== undefined) S[k] = keep[k]; }
+  S.restoredAt = Date.now();
+  S.remoteSave = null;
+  S.backupAt = Date.now();
+  try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
+  save();
+  STACK = []; cur = "home"; render();
+  toast("رجعت النسخة المحفوظة — تقدمك وصداقاتك ورسايلك رجعوا");
+  say("رجعت النسخة المحفوظة");
+}
+
+/* ===== تنبيه التحديث ===== */
+function checkUpdate(){
+  try{
+    if (Date.now() - (S.updateChecked || 0) < 3600000) return;
+    S.updateChecked = Date.now();
+    fetch("https://api.github.com/repos/swaad9076-tech/girls-kitchen/releases/tags/latest", {cache:"no-store"})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.name) return;
+        var m = String(j.name).match(/(\d+)\.(\d+)/);
+        if (!m) return;
+        var maj = +m[1], mnr = +m[2], cur = APP_VER.split(".");
+        if (maj < +cur[0] || (maj === +cur[0] && mnr <= +cur[1])) return;
+        var url = j.html_url || "";
+        if (j.assets){
+          for (var i=0;i<j.assets.length;i++){
+            if (/\.apk$/i.test(j.assets[i].name)){ url = j.assets[i].browser_download_url; break; }
+          }
+        }
+        S.updateVer = m[1] + "." + m[2];
+        S.updateUrl = url;
+        save();
+        sfx("bell");
+        toast("في تحديث جديد للعبة " + S.updateVer);
+        say("في تحديث جديد للعبة. افتحي الرئيسية وحمّلي النسخة الجديدة");
+        if (cur === "home") render();
+      }).catch(function(){});
+  }catch(e){}
+}
+function openUpdate(){
+  var u = S.updateUrl;
+  if (!u){ toast("مفيش لينك تحديث"); return; }
+  try{
+    if (window.Native && window.Native.openUrl){ window.Native.openUrl(u); return; }
+  }catch(e){}
+  try{ window.location.href = u; }catch(e){}
+}
+
+/* ===== المساعدة الصوتية ===== */
+var HELP = {
+  home:"ده بيتك. من هنا تختاري أي قسم: الطبخ، الطاولات، المطعم، والأونلاين. الأدوات اللي فوق بتوريكي فلوسك وقلوبك ومستواك.",
+  cook:"تحضير الأطباق. اختاري وصفة، والتطبيق هيقولك المكونات اللي محتاجاها.",
+  tables:"الطاولات والزبائن. هنا بتستقبلي الزباين وتقدمي الأكل.",
+  online:"اللاعبات والأونلاين. تقدري تفتحي طاولة، تدخلي طاولة، أو تدوري على لاعبة بالاسم.",
+  find:"البحث عن لاعبة. اكتبي جزء من الاسم واضغطي بحث، وبعدها تقدري تفتحي ملفها وتبعتيلها طلب صداقة أو رسالة.",
+  leaderboard:"قائمة المتصدرين. أعلى اللاعبات في النقاط.",
+  settings:"الإعدادات. هنا صوت المساعدة، قارئ الشاشة، حجم الخط، والحفظ والنسخة الاحتياطية.",
+  chat:"الرسائل. كل محادثة مع صاحبتك أو مع الطاولة، والرسايل محفوظة.",
+  store:"المخزن. تشتري مكونات وتغسلي المواعين.",
+  cashier:"الكاشير. تحطي الفلوس في الدرج وتاخدي الباقي.",
+  room:"الطاولة الأونلاين. المايك دايمًا فوق قصادك، وكل حاجة تانية جوه الطاولة.",
+  wardrobe:"الدولاب. تختاري هدومك وشكلك.",
+  minigames:"الألعاب الصغيرة. كل لعبة ليها شرح صوتي لما تدخليها."
+};
+function screenHelp(id){
+  if (S.readerMode) return;
+  if (!S.voiceHelp) return;
+  var t = "";
+  try{ t = (document.querySelector("#app .title") || {}).textContent || ""; }catch(e){}
+  var txt = (HELP[id] || "اختاري أي زر، وكل زر هيقولك هو بيعمل إيه.");
+  say(txt);
 }
 
 /* ===== الميكروفون المباشر — لاسلكي بين الموبايلات ===== */
@@ -645,7 +774,8 @@ function defState(){
     experiments:[], magic:false, flavors:0,
     mg:{fruitsUntil:0, fruitsScore:0, fruitsBest:0, seq:[], input:[], juice:[], speedUntil:0, speedScore:0, speedBest:0, juiceSeq:[], juiceInput:[]},
     partiesDone:0, partiesCd:{},
-    muted:false, autoRead:false, bigText:false, simple:false, readerMode:false, readerManual:false,
+    muted:false, autoRead:false, bigText:false, simple:false, readerMode:false, readerManual:false, voiceHelp:true,
+    savedAt:0, backupAt:0, restoredAt:0, remoteSave:null, updateVer:"", updateUrl:"", updateChecked:0,
     cd:{}
   };
 }
@@ -666,7 +796,7 @@ function load(){
   }catch(e){}
   dailyReset();
 }
-function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+function save(){ try{ S.savedAt = Date.now(); localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} try{ pushBackup(false); }catch(e){} }
 
 /* ===== أدوات ===== */
 function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
@@ -674,6 +804,7 @@ function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function todayKey(){ var d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
 function weekKey(){ var d=new Date(); var one=d.getTime()-((d.getDay()||7)-1)*86400000; var m=new Date(one); return m.getFullYear()+"-W"+(m.getMonth()+1)+"-"+m.getDate(); }
 function fmtNum(n){ n=Math.floor(n); return String(n); }
+function timeAgo(t){ if(!t) return "لسه"; var d=Math.floor((Date.now()-t)/1000); if(d<60) return "من كام ثانية"; if(d<3600) return "من "+Math.floor(d/60)+" دقيقة"; if(d<86400) return "من "+Math.floor(d/3600)+" ساعة"; return "من "+Math.floor(d/86400)+" يوم"; }
 function sfx(n){
   if (S.muted || S.music.quiet) return;
   try{
@@ -837,7 +968,7 @@ function go(id, quiet){
     cur = id;
   }
   render();
-  if (changed){ LAST_TAP = ""; try{ window.scrollTo(0,0); }catch(e){} focusTitle(); }
+  if (changed){ LAST_TAP = ""; try{ window.scrollTo(0,0); }catch(e){} focusTitle(); try{ screenHelp(id); }catch(e){} }
 }
 function back(){
   var prev = "";
@@ -871,7 +1002,7 @@ function head(title){
       '</div>';
     }
   }catch(e){}
-  return '<div class="topbar"><button class="ibtn" onclick="act(\'back\')" aria-label="رجوع">⟵</button><div class="title" role="heading" aria-level="1" tabindex="-1">'+title+'</div></div>'+statsBar()+bar;
+  return '<div class="topbar"><button class="ibtn" onclick="act(\'back\')" aria-label="رجوع">⟵</button><div class="title" role="heading" aria-level="1" tabindex="-1">'+title+'</div><button class="ibtn" onclick="act(\'helpNow\')" aria-label="اسمعي شرح الشاشة">؟</button></div>'+statsBar()+bar;
 }
 function card(t,body){ return '<div class="card"><div class="ct">'+t+'</div>'+body+'</div>'; }
 function jsArg(v){
@@ -968,6 +1099,16 @@ SCREENS.home = function(){
   h += '<div class="hero"><div class="h1">أهلاً يا شيف 👩‍🍳</div><div class="small">مطعمك الصغير مستنيكي. اختاري قسم وابدأي</div>'+
        bar((S.xp/xpNeed)*100)+'<div class="small">المستوى '+S.level+' — '+S.xp+' / '+xpNeed+' خبرة</div></div>';
   h += pendingLine();
+  if (S.updateVer && S.updateUrl){
+    h += '<div class="card" style="background:#e9f7ff"><div class="ct">تحديث جديد للعبة '+S.updateVer+'</div>'+
+         '<div class="small">في نسخة أحدث من اللعبة. حمّليها عشان تلاقي كل الجديد.</div>'+
+         b("حمّلي التحديث","update",null,"g bigbtn")+'</div>';
+  }
+  if (S.remoteSave){
+    h += '<div class="card" style="background:#fff7e2"><div class="ct">نسخة محفوظة على حسابك</div>'+
+         '<div class="small">في نسخة أحدث من تقدمك محفوظة. تقدري ترجعيها.</div>'+
+         b("رجّعي النسخة المحفوظة","restoreSave",null,"o bigbtn")+'</div>';
+  }
   h += '<div class="card"><div class="ct" role="heading" aria-level="2">البحث واللاعبات</div>'+
        '<div class="small">دوّري على أي لاعبة بالاسم، افتحي ملفها، وابعتيلها طلب صداقة أو رسالة.</div>'+
        b("بحث عن لاعبة","go","find","g bigbtn")+
@@ -1697,6 +1838,19 @@ SCREENS.settings = function(){
     '<div class="kv"><span>وضع قارئ الشاشة</span><b>'+(S.readerMode?"شغال":"مقفول")+'</b></div>'+
     b(S.readerMode?"اقفلي وضع قارئ الشاشة":"شغّلي وضع قارئ الشاشة","readerMode",null,S.readerMode?"d bigbtn":"g bigbtn")+
     b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")
+  );
+  h += card("المساعدة الصوتية",
+    '<div class="small">لما تدخلي أي شاشة، التطبيق يشرحلك هي فيها إيه. وزرار ؟ اللي فوق يكرر الشرح في أي وقت.</div>'+
+    '<div class="kv"><span>شرح الشاشات بالصوت</span><b>'+(S.voiceHelp?"شغال":"مقفول")+'</b></div>'+
+    b(S.voiceHelp?"اقفلي شرح الشاشات":"شغّلي شرح الشاشات","voiceHelp",null,S.voiceHelp?"d sm":"g sm")+
+    b("اسمعي شرح الشاشة دي","helpNow",null,"p sm")
+  );
+  h += card("الحفظ والنسخة الاحتياطية",
+    '<div class="small">تقدمك وصداقاتك وطلبات الصداقة والرسايل بتتحفظ تلقائي على جهازك وعلى حسابك في اللعبة. لو نزّلتي التطبيق من جديد، ترجعي النسخة من هنا.</div>'+
+    '<div class="kv"><span>آخر حفظ على الجهاز</span><b>'+timeAgo(S.savedAt)+'</b></div>'+
+    '<div class="kv"><span>النسخة على الحساب</span><b>'+(S.remoteSave ? "في نسخة أحدث" : "متزامنة")+'</b></div>'+
+    b("احفظي نسخة دلوقتي","saveNow",null,"g sm")+
+    b("رجّعي النسخة المحفوظة","restoreSave",null,"o sm")
   );
   h += card("لغة الحوار السهل",
     '<div class="small">تبسيط النصوص والكلام للوصف السريع.</div>'+
@@ -3616,6 +3770,27 @@ function act(a, arg, arg2){
     fin(); return;
 
   /* 18. الإعدادات */
+  case "voiceHelp":
+    S.voiceHelp = !S.voiceHelp;
+    toast(S.voiceHelp ? "شرح الشاشات بالصوت شغال" : "شرح الشاشات بالصوت اتقفل");
+    if (S.voiceHelp) say("شرح الشاشات شغال");
+    fin(); return;
+
+  case "helpNow":
+    S.readerMode = S.readerMode;
+    say(HELP[cur] || "اختاري أي زر، وكل زر هيقولك هو بيعمل إيه");
+    toast("الشرح اتقرا"); save(); return;
+
+  case "saveNow":
+    if (NET.state !== "on"){ toast("محتاجة نت عشان تتحفظ النسخة على حسابك — التقدم على الجهاز محفوظ"); save(); return; }
+    pushBackup(true); save(); return;
+
+  case "restoreSave":
+    restoreSave(); return;
+
+  case "update":
+    openUpdate(); return;
+
   case "srTest":
     say("اختبار قارئ الشاشة: زر رجوع، وكل الأزرار ليها اسم واضح");
     save(); return;
@@ -3902,6 +4077,7 @@ try{
 try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
 render();
 try{ setTimeout(netInit, 800); }catch(e){}
+try{ setTimeout(checkUpdate, 2500); }catch(e){}
 </script>
 </body>
 </html>

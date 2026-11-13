@@ -133,6 +133,16 @@ public class MainActivity extends Activity {
         public boolean ttsAvailable() { return ttsReady; }
 
         @JavascriptInterface
+        public void openUrl(String url) {
+            if (url == null) return;
+            String u = url.trim();
+            if (!u.startsWith("http://") && !u.startsWith("https://")) return;
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)));
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
         public boolean screenReader() {
             try {
                 android.view.accessibility.AccessibilityManager am =
