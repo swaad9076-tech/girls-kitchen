@@ -145,7 +145,7 @@ function defState(){
     experiments:[], magic:false, flavors:0,
     mg:{fruitsUntil:0, fruitsScore:0, fruitsBest:0, seq:[], input:[], juice:[], speedUntil:0, speedScore:0, speedBest:0, juiceSeq:[], juiceInput:[]},
     partiesDone:0, partiesCd:{},
-    muted:false, autoRead:true, bigText:false, simple:false,
+    muted:false, autoRead:false, bigText:false, simple:false,
     cd:{}
   };
 }
@@ -249,15 +249,18 @@ function requirePower(){
 var cur = "home", STACK = [];
 var SCREENS = {};
 function render(){
+  var y = 0;
+  try{ y = window.scrollY || document.documentElement.scrollTop || 0; }catch(e){}
   var f = SCREENS[cur] || SCREENS.home;
   var el = document.getElementById("app");
   el.innerHTML = f();
-  try{ window.scrollTo(0,0); }catch(e){}
+  try{ window.scrollTo(0, y); }catch(e){}
 }
 function go(id, quiet){
-  if (cur !== id){ STACK.push(cur); cur = id; }
+  var changed = (cur !== id);
+  if (changed){ STACK.push(cur); cur = id; }
   render();
-  if (!quiet && S.autoRead) speakScreen();
+  if (changed){ try{ window.scrollTo(0,0); }catch(e){} }
 }
 function back(){
   if (STACK.length){ cur = STACK.pop(); render(); return true; }
@@ -265,19 +268,11 @@ function back(){
 }
 window.gameBack = back;
 
-function speakScreen(){
-  try{
-    var el = document.getElementById("app");
-    var t = (el.innerText || el.textContent || "").replace(/\s+/g," ").trim();
-    if (t.length > 420) t = t.slice(0,420) + "…";
-    say(t);
-  }catch(e){}
-}
 function statsBar(){
   return '<div class="res"><span class="chip">'+ICON.coin+' '+fmtNum(S.coin)+'</span><span class="chip">'+ICON.heart+' '+S.heart+'</span><span class="chip">'+ICON.star+' '+S.star+'</span><span class="chip">مستوى '+S.level+'</span></div>';
 }
 function head(title){
-  return '<div class="topbar"><button class="ibtn" onclick="act(\'back\')" aria-label="رجوع">⟵</button><div class="title">'+title+'</div><button class="ibtn" onclick="speakScreen()" aria-label="إعادة نطق الشاشة">🔊</button></div>'+statsBar();
+  return '<div class="topbar"><button class="ibtn" onclick="act(\'back\')" aria-label="رجوع">⟵</button><div class="title">'+title+'</div></div>'+statsBar();
 }
 function card(t,body){ return '<div class="card"><div class="ct">'+t+'</div>'+body+'</div>'; }
 function b(label,a,arg,cls){
@@ -994,8 +989,7 @@ SCREENS.settings = function(){
   var h = head("الإعدادات وإمكانية الوصول");
   h += card("قارئ الشاشة والتوافق",
     '<div class="small">التطبيق متوافق مع قارئات الشاشة. كل زر ليه اسم واضح.</div>'+
-    b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")+
-    b(S.autoRead?"إيقاف القراءة التلقائية":"تشغيل القراءة التلقائية","autoRead",null,"o sm")
+    b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")
   );
   h += card("لغة الحوار السهل",
     '<div class="small">تبسيط النصوص والكلام للوصف السريع.</div>'+
@@ -1871,7 +1865,6 @@ function act(a, arg, arg2){
 
   case "quiet":
     S.music.quiet = !S.music.quiet;
-    if (S.music.quiet) say("الوضع الهادئ اتشغل. قارئ الشاشة شغال والأصوات الصاخبة اتكتمت");
     toast(S.music.quiet ? "الوضع الهادئ شغال" : "الوضع الهادئ اتلغى");
     fin(); return;
 
@@ -1963,14 +1956,8 @@ function act(a, arg, arg2){
 
   /* 18. الإعدادات */
   case "srTest":
-    say("اختبار قارئ الشاشة: زر رجوع، زر إعادة النطق، وكل الأزرار ليها اسم واضح");
-    toast("الاختبار اتشغل");
+    say("اختبار قارئ الشاشة: زر رجوع، وكل الأزرار ليها اسم واضح");
     save(); return;
-
-  case "autoRead":
-    S.autoRead = !S.autoRead;
-    toast(S.autoRead ? "القراءة التلقائية شغالة" : "القراءة التلقائية وقفت");
-    fin(); return;
 
   case "simple":
     S.simple = !S.simple;
@@ -2251,16 +2238,6 @@ try{ if (location.hash === "#reset") localStorage.removeItem(LS); }catch(e){}
 load();
 try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
 render();
-
-/* تحديث خفيف للشاشات اللي فيها وقت أو صبر */
-setInterval(function(){
-  if (cur === "tables" || cur === "cut" || cur === "stove" || cur === "garden" || cur === "chall" || cur === "minigames"){
-    var y = 0;
-    try{ y = window.scrollY || window.pageYOffset || 0; }catch(e){}
-    render();
-    try{ window.scrollTo(0, y); }catch(e){}
-  }
-}, 1000);
 </script>
 </body>
 </html>
