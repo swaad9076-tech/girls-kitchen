@@ -69,7 +69,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
-var APP_VER = "1.6";
+var APP_VER = "1.7";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
 var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
 var DISHES = [
@@ -629,68 +629,180 @@ function screenHelp(id){
 /* ===== الميكروفون المباشر — لاسلكي بين الموبايلات ===== */
 var PTT = {on:false, mr:null, stream:null, t0:0};
 var LIVEQ = [], LIVE_BUSY = false;
+
+function pickMime(){
+  var list = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+  for (var i = 0; i < list.length; i++){
+    try{ if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(list[i])) return list[i]; }catch(e){}
+  }
+  return "";
+}
+function b64ToBlob(b64, mime){
+  try{
+    var raw = String(b64 || "").replace(/^data:[^,]*,/, "");
+    if (!raw) return null;
+    var bin = atob(raw);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], {type: mime || "audio/webm"});
+  }catch(e){ return null; }
+}
+function blobToB64(blob, cb){
+  try{
+    var fr = new FileReader();
+    fr.onload = function(){ cb(String(fr.result || "").replace(/^data:[^,]*,/, "")); };
+    fr.onerror = function(){};
+    fr.readAsDataURL(blob);
+  }catch(e){}
+}
+/* فتح الصوت في WebView من أول لمسة — من غيرها المتصفح بيمنع التشغيل */
+var AU_OK = false;
+function unlockAudio(){
+  if (AU_OK) return;
+  AU_OK = true;
+  try{
+    var a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=");
+    a.volume = 0.01;
+    var p = a.play();
+    if (p && p.catch) p.catch(function(){});
+  }catch(e){}
+}
+try{
+  document.addEventListener("touchend", unlockAudio, true);
+  document.addEventListener("mousedown", unlockAudio, true);
+}catch(e){}
+
 function pttStart(){
-  if (!S.online.mic){ toast("الميكروفون مقفول — افتحيه الأول"); return; }
-  if (!NET.joined || NET.state !== "on"){ toast("لازم تكوني جوه طاولة ومتصلة بالقناة"); return; }
+  if (!S.online.mic){ toast("الميكروفون مقفول — افتحيه الأول"); sfx("error"); return; }
+  if (!NET.joined || NET.state !== "on"){ toast("لازم تكوني جوه طاولة ومتصلة بالقناة"); sfx("error"); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
-    toast("الميكروفون مش متاح على الجهاز ده");
+    toast("الميكروفون مش متاح على الجهاز ده"); sfx("error");
     return;
   }
-  navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
+  if (PTT.on) return;
+  unlockAudio();
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}).then(function(st){
     PTT.stream = st;
-    PTT.t0 = Date.now();
-    try{ PTT.mr = new MediaRecorder(st, {mimeType:"audio/webm;codecs=opus", audioBitsPerSecond:16000}); }
-    catch(e){ PTT.mr = new MediaRecorder(st); }
-    PTT.mr.ondataavailable = function(e){
-      if (!e.data || !e.data.size) return;
-      if (!NET.joined || NET.state !== "on") return;
-      try{
-        var fr = new FileReader();
-        fr.onload = function(){
-          try{ netPublish("rooms/" + NET.joined + "/live", {id:NET.id, n:S.online.nick, a:String(fr.result || "")}); }catch(err){}
-        };
-        fr.readAsDataURL(e.data);
-      }catch(err){}
-    };
-    PTT.mr.start(900);
     PTT.on = true;
+    PTT.t0 = Date.now();
     sfx("click");
     toast("اتكلمي دلوقتي — صوتك بيسمع في الطاولة");
     render();
+    recordSeg();
   }).catch(function(){
     toast("مش قادرة أفتح الميكروفون — اسمحي بالمايك من إعدادات التطبيق");
+    sfx("error");
   });
+}
+/* كل مقطع بيتسجل لوحده وبيتقفل، فكل ملف بيطلع كامل ومقروء عند الطرف التاني */
+function recordSeg(){
+  if (!PTT.on || !PTT.stream) return;
+  var mime = pickMime();
+  var mr = null;
+  try{ mr = mime ? new MediaRecorder(PTT.stream, {mimeType:mime, audioBitsPerSecond:24000}) : new MediaRecorder(PTT.stream); }
+  catch(e){ try{ mr = new MediaRecorder(PTT.stream); }catch(e2){ PTT.on = false; toast("مش قادرة أسجل الصوت"); return; } }
+  var chunks = [];
+  mr.ondataavailable = function(e){ if (e.data && e.data.size) chunks.push(e.data); };
+  mr.onstop = function(){
+    var type = "";
+    try{ type = mr.mimeType || mime || "audio/webm"; }catch(e){ type = mime || "audio/webm"; }
+    try{
+      if (chunks.length && NET.joined && NET.state === "on"){
+        var blob = new Blob(chunks, {type:type});
+        if (blob.size > 900){
+          blobToB64(blob, function(b64){
+            if (!b64) return;
+            try{ netPublish("rooms/" + NET.joined + "/live", {id:NET.id, n:S.online.nick, a:b64, m:type, t:Date.now()}); }catch(e){}
+          });
+        }
+      }
+    }catch(e){}
+    if (PTT.on) setTimeout(recordSeg, 30);
+  };
+  PTT.mr = mr;
+  try{ mr.start(); }
+  catch(e){ PTT.on = false; try{ mr.stop(); }catch(e2){} return; }
+  setTimeout(function(){ try{ if (mr.state !== "inactive") mr.stop(); }catch(e){} }, 1200);
 }
 function pttStop(){
   var was = PTT.on;
   PTT.on = false;
-  try{ if (PTT.mr) PTT.mr.stop(); }catch(e){}
+  try{ if (PTT.mr && PTT.mr.state !== "inactive") PTT.mr.stop(); }catch(e){}
+  PTT.mr = null;
   try{ if (PTT.stream) PTT.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
-  PTT.mr = null; PTT.stream = null;
-  if (was) toast("قفلتي الكلام");
+  PTT.stream = null;
+  if (was){ toast("قفلتي الكلام"); sfx("click"); }
   render();
 }
 function netLive(m){
   if (!m || !m.a || m.id === NET.id) return;
   var p = NET.peers[m.id];
   if (p && p.muted) return;
-  if (!S.online.mic) return;
-  LIVEQ.push(m.a);
-  if (LIVEQ.length > 8) LIVEQ.shift();
+  LIVEQ.push({a:m.a, m:m.m || "audio/webm", n:m.n || ""});
+  if (LIVEQ.length > 12) LIVEQ.shift();
   if (!LIVE_BUSY) playLive();
 }
 function playLive(){
   if (!LIVEQ.length){ LIVE_BUSY = false; return; }
   LIVE_BUSY = true;
+  var it = LIVEQ.shift();
+  var blob = b64ToBlob(it.a, it.m);
+  if (!blob){ setTimeout(playLive, 10); return; }
+  var url = "", el = null;
   try{
-    var el = new Audio(LIVEQ.shift());
-    var done = false;
-    var next = function(){ if (done) return; done = true; playLive(); };
-    el.onended = next;
-    el.onerror = next;
+    url = URL.createObjectURL(blob);
+    el = new Audio(url);
+    el.volume = 1;
+  }catch(e){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
+  var done = false;
+  var next = function(){
+    if (done) return;
+    done = true;
+    try{ el.pause(); }catch(e){}
+    try{ URL.revokeObjectURL(url); }catch(e){}
+    playLive();
+  };
+  el.onended = next;
+  el.onerror = next;
+  setTimeout(function(){ if (!done) next(); }, 8000);
+  try{
     var pr = el.play();
-    if (pr && pr.catch) pr.catch(next);
-  }catch(e){ LIVE_BUSY = false; }
+    if (pr && pr.catch) pr.catch(function(){ next(); });
+  }catch(e){ next(); }
+}
+/* اختبار الميكروفون على نفس الجهاز: بيسجل 3 ثواني وبيشغلها */
+function micTest(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+    toast("الميكروفون مش متاح على الجهاز ده"); sfx("error"); return;
+  }
+  unlockAudio();
+  toast("اتكلمي 3 ثواني… هسجل وأشغللك صوتك");
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
+    var mime = pickMime();
+    var mr = null;
+    try{ mr = mime ? new MediaRecorder(st, {mimeType:mime}) : new MediaRecorder(st); }
+    catch(e){ try{ mr = new MediaRecorder(st); }catch(e2){ toast("مش قادرة أسجل"); return; } }
+    var chunks = [];
+    mr.ondataavailable = function(e){ if (e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = function(){
+      try{ st.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+      try{
+        var blob = new Blob(chunks, {type:mr.mimeType || mime || "audio/webm"});
+        if (!blob.size){ toast("التسجيل طلع فاضي — جرّبي تاني"); return; }
+        var u = URL.createObjectURL(blob);
+        var a = new Audio(u);
+        a.onended = function(){ try{ URL.revokeObjectURL(u); }catch(e){} };
+        var pr = a.play();
+        if (pr && pr.catch) pr.catch(function(){ toast("اتسجل صوت، بس التشغيل متأخر — اضغطي الزرار تاني"); });
+        else toast("لو سمعتي صوتك، المايك شغال تمام");
+      }catch(e){ toast("التسجيل اتاخد بس مش قادرة أشغله"); }
+    };
+    mr.start();
+    setTimeout(function(){ try{ if (mr.state !== "inactive") mr.stop(); }catch(e){} }, 3000);
+  }).catch(function(){
+    toast("مش قادرة أفتح الميكروفون — اسمحي بالمايك من إعدادات التطبيق");
+    sfx("error");
+  });
 }
 
 function liveTables(){
@@ -1839,7 +1951,12 @@ SCREENS.settings = function(){
     b(S.readerMode?"اقفلي وضع قارئ الشاشة":"شغّلي وضع قارئ الشاشة","readerMode",null,S.readerMode?"d bigbtn":"g bigbtn")+
     b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")
   );
-  h += card("المساعدة الصوتية",
+  h += card("اختبار الميكروفون",
+    '<div class="small">بيسجل 3 ثواني ويشغلها على نفس الموبايل — أسرع طريقة تعرفي المايك شغال ولا لأ.</div>'+
+    b("اختبار المايك","micTest",null,"p bigbtn")
+  );
+
+h += card("المساعدة الصوتية",
     '<div class="small">لما تدخلي أي شاشة، التطبيق يشرحلك هي فيها إيه. وزرار ؟ اللي فوق يكرر الشرح في أي وقت.</div>'+
     '<div class="kv"><span>شرح الشاشات بالصوت</span><b>'+(S.voiceHelp?"شغال":"مقفول")+'</b></div>'+
     b(S.voiceHelp?"اقفلي شرح الشاشات":"شغّلي شرح الشاشات","voiceHelp",null,S.voiceHelp?"d sm":"g sm")+
@@ -2188,7 +2305,9 @@ SCREENS.room = function(){
         '<div class="small">'+(PTT.on
           ? "صوتك بيبعت دلوقتي — اضغطي تاني لما تخلصي."
           : "اضغطي، اتكلمي، واضغطي تاني عشان توقفي. اللي في الطاولة هيسمعوك، وانتي هتسمعيهم.")+'</div>'
-      : '<div class="small">زرار الكلام بيشتغل جوه الطاولات المباشرة على القناة المجانية.</div>')
+      : '<div class="small">زرار الكلام بيشتغل جوه الطاولات المباشرة على القناة المجانية.</div>')+
+    b("اختبار المايك على جهازي","micTest",null,"o bigbtn")+
+    '<div class="small">اضغطي الاختبار، اتكلمي 3 ثواني — لو سمعتي صوتك يبقى المايك شغال، ولو مش سامعة نفسك المشكلة في إذن المايك في الإعدادات.</div>'
   );
 
   h += card("العبي جوه الطاولة",
@@ -3790,6 +3909,9 @@ function act(a, arg, arg2){
 
   case "update":
     openUpdate(); return;
+
+  case "micTest":
+    micTest(); return;
 
   case "srTest":
     say("اختبار قارئ الشاشة: زر رجوع، وكل الأزرار ليها اسم واضح");
