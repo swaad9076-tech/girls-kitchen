@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.waad.girlskitchen'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.waad.girlskitchen"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        stable {
+            storeFile file("../keystore/waad-farm.p12")
+            storePassword "waadfarm2026"
+            keyAlias "waadfarm"
+            keyPassword "waadfarm2026"
+        }
+    }
+
+    buildTypes {
+        debug { signingConfig signingConfigs.stable }
+        release { minifyEnabled false; signingConfig signingConfigs.stable }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

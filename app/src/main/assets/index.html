@@ -1,0 +1,2266 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>مطبخ البنات</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:linear-gradient(160deg,#fff4e8,#ffe3ef 45%,#ffe9d2);color:#3a2418;direction:rtl;padding-bottom:40px}
+body.big{font-size:19px}
+#app{max-width:580px;margin:0 auto;padding:10px 12px}
+.topbar{display:flex;align-items:center;gap:8px;margin:6px 0}
+.title{flex:1;text-align:center;font-weight:800;font-size:19px}
+.ibtn{width:46px;height:46px;border-radius:15px;border:0;background:#fff;box-shadow:0 3px 10px rgba(160,90,40,.16);font-size:20px;color:#5a3a28;flex:0 0 auto}
+.res{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:14px;margin-bottom:8px}
+.chip{background:#fff;border-radius:999px;padding:6px 12px;box-shadow:0 2px 8px rgba(160,90,40,.12);font-weight:700}
+.card{background:#fff;border-radius:20px;padding:14px;margin:10px 0;box-shadow:0 4px 16px rgba(170,100,60,.12)}
+.ct{font-weight:800;font-size:17px;margin-bottom:8px;color:#8a3f5e}
+.btn{display:block;width:100%;text-align:right;padding:14px 16px;margin:7px 0;border-radius:16px;border:0;background:#fff3e7;color:#4a2c1c;font-size:16px;font-weight:700;font-family:inherit;box-shadow:0 2px 6px rgba(170,110,70,.08)}
+.btn:active{transform:scale(.985)}
+.btn.p{background:linear-gradient(135deg,#ff7bb0,#ff5e8f);color:#fff}
+.btn.g{background:linear-gradient(135deg,#6fd39a,#3fae6a);color:#fff}
+.btn.o{background:linear-gradient(135deg,#ffb066,#ff8a3d);color:#fff}
+.btn.d{background:#f1ece8;color:#9a8a7e}
+.btn.sm{padding:10px 12px;font-size:14px;margin:4px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.tile{background:#fff;border:0;border-radius:18px;padding:13px 12px;text-align:right;font-family:inherit;font-size:15px;font-weight:700;color:#4a2c1c;box-shadow:0 3px 12px rgba(170,100,60,.12);line-height:1.35}
+.tile b{display:block;color:#ff5e8f;font-size:12px;margin-bottom:3px}
+.grp{font-weight:800;color:#8a3f5e;margin:16px 4px 6px;font-size:15px}
+.bar{height:11px;background:#ffe3d3;border-radius:99px;overflow:hidden;margin:6px 0}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,#ff8a3d,#ff5e8f);transition:width .3s}
+.bar.g>i{background:linear-gradient(90deg,#6fd39a,#3fae6a)}
+.bar.r>i{background:linear-gradient(90deg,#ff6b6b,#d63031)}
+.small{font-size:13px;color:#8a6b58;line-height:1.5}
+input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-size:16px;font-family:inherit;margin:6px 0;background:#fffdfb;color:#3a2418}
+.row{display:flex;gap:8px;align-items:center}
+.row .btn{flex:1}
+.stars{color:#f5b301;font-size:18px;letter-spacing:2px}
+.tag{display:inline-block;background:#ffe9f2;color:#c23d75;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;margin:2px}
+.tag.g{background:#e4f7ec;color:#2e8a55}
+.tag.o{background:#fff0dd;color:#c26a13}
+.thumb{display:inline-flex;align-items:center;justify-content:center;width:92px;height:92px;border-radius:18px;margin:4px;font-size:30px;box-shadow:inset 0 0 0 3px rgba(255,255,255,.5)}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(90px);background:#3a2418;color:#fff;padding:13px 18px;border-radius:16px;font-weight:700;max-width:92%;text-align:center;opacity:0;transition:.25s;z-index:99;font-size:15px;line-height:1.5}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hero{background:linear-gradient(135deg,#ff8a3d,#ff5e8f);color:#fff;border-radius:24px;padding:18px;box-shadow:0 8px 24px rgba(255,94,143,.3)}
+.hero .h1{font-size:22px;font-weight:900;margin-bottom:4px}
+.hero .small{color:#fff3f7}
+.hero .bar{background:rgba(255,255,255,.35)}
+.hero .bar>i{background:#fff}
+.kv{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #f3ddd0;font-size:15px}
+.kv:last-child{border-bottom:0}
+.kv b{font-weight:800}
+.hint{background:#fff8ef;border:1px dashed #ffd2b8;border-radius:14px;padding:10px;font-size:13px;color:#8a6b58;margin:8px 0;line-height:1.5}
+.center{text-align:center}
+.bigbtn{padding:22px;font-size:19px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+
+/* ===== البيانات الأساسية ===== */
+var LS = "kitchen_v1";
+var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
+var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
+var DISHES = [
+  {id:"salad", n:"سلطة طازجة", ing:["tomato","cucumber","herb"], base:10},
+  {id:"burger", n:"برجر لحم", ing:["meat","flour","tomato"], base:16},
+  {id:"cake", n:"كيك شوكولاتة", ing:["flour","sugar","choco"], base:20},
+  {id:"pie", n:"فطيرة فواكه", ing:["flour","fruit","sugar"], base:18},
+  {id:"soup", n:"شوربة خضار", ing:["tomato","herb","milk"], base:12},
+  {id:"pasta", n:"مكرونة بالجبن", ing:["flour","milk","meat"], base:17}
+];
+var DRINKS = [
+  {id:"latte", n:"لاتيه", fac:"espresso"},
+  {id:"juice", n:"عصير فواكه", fac:"blender"},
+  {id:"tea", n:"شاي بنعناع", fac:"tea"}
+];
+var NAMES = ["سارة","ملك","جنى","نور","ليلى","هنا","مريم","ياسمين","تاليا","داليدا","روان","شهد","لمار","حلا","بيان"];
+var COMMENTS_GOOD = ["الأكل كان لذيذ جداً!","المكان نضيف ومرتب","خدمة سريعة وودودة","الحلويات تحفة","البوفيه رائع والمكان مريح"];
+var COMMENTS_BAD = ["استنيت كتير على الطاولة","الطاولة مكانتش نضيفة","الأوردر جالها برد","الحمام محتاج تنظيف","المكان زحمة والخدمة بطيئة"];
+var GARNISH = ["صوص شوكولاتة","فراولة مقطعة","ورق نعناع","كريمة مخفوقة","سكر ناعم","وردة سكرية"];
+var CITIES = ["القاهرة","دبي","إسطنبول","لندن","طوكيو"];
+var OUTFITS = ["مريلة وردي كلاسيك","فستان شيف بيج","يونيفورم أسود أنيق","بدلة شيف ذهبية"];
+var HATS = ["قبعة بيضاء كلاسيك","قبعة وردي مزخرفة","قبعة سوداء عصرية","تاج شيف ذهبي"];
+var ACCS = ["نظارة أنيقة","سلسلة قلب","أقراط لؤلؤ","ساعة ذهبية"];
+var TRACKS = ["ألحان المطبخ الهادئة","موسيقى الصباح المبهجة","نغمات الحلويات","صوت مطر خفيف"];
+var NOTIFS = ["جرس الباب","نغمة جاهزية الطلب","صوت خفيف","بدون صوت"];
+var BGS = ["خلفية مطبخ دافئ","خلفية نجوم وردية","خلفية حديقة خضراء"];
+var PALACE_ROOMS = ["حمام الزبائن الفاخر","صالة الكراسي","زينة الطاولات","أثاث وألوان المطبخ","إضاءة المطبخ","ركن القهوة"];
+var ACH = [
+  {id:"a1", n:"أول طبق", d:"حضّري أول طبق", s:1, chk:function(){return S.dishesMade>=1;}},
+  {id:"a2", n:"شيف مبتدئة", d:"حضّري 5 أطباق", s:1, chk:function(){return S.dishesMade>=5;}},
+  {id:"a3", n:"خدمة ممتازة", d:"اخدمي 10 زبائن", s:2, chk:function(){return S.served>=10;}},
+  {id:"a4", n:"مطبخ نضيف", d:"اغسلي الأطباق 5 مرات", s:1, chk:function(){return S.washes>=5;}},
+  {id:"a5", n:"نجمة التقييم", d:"وصلي لتقييم 4 نجوم", s:3, chk:function(){return S.rating>=4;}},
+  {id:"a6", n:"صاحبة إمبراطورية", d:"افتحي أول فرع دولي", s:3, chk:function(){return S.branches.length>=1;}},
+  {id:"a7", n:"شيف صاعدة", d:"واصلي للمستوى 5", s:2, chk:function(){return S.level>=5;}},
+  {id:"a8", n:"قلب المطعم", d:"اجمعي 10 قلوب حب", s:2, chk:function(){return S.heartsLifetime>=10;}},
+  {id:"a9", n:"مبتكرة", d:"اخترعي وصفة باسمك", s:2, chk:function(){return S.recipes.length>=1;}},
+  {id:"a10", n:"ملكة الحفلات", d:"نظّمي 3 حفلات", s:2, chk:function(){return S.partiesDone>=3;}}
+];
+var STORY = [
+  {n:"الفصل الأول: المفتاح القديم", d:"جدتك تركت لك مفتاح المطبخ الصغير في بيت العائلة.", need:function(){return true;}, rw:{coin:100}},
+  {n:"الفصل الثاني: أول زبونة", d:"وصلت أول زبونة للمطعم الصغير، وعليك إسعادها.", need:function(){return S.served>=1;}, rw:{coin:150}},
+  {n:"الفصل الثالث: دفتر الوصفات", d:"وجدتِ دفتر وصفات الجدة في الدرج السري.", need:function(){return S.dishesMade>=3;}, rw:{coin:200, heart:1}},
+  {n:"الفصل الرابع: الشيف المنافس", d:"ظهر شيف منافس وفتح مطعماً بجوارك.", need:function(){return S.rating>=3.5;}, rw:{coin:350, star:1}},
+  {n:"الفصل الخامس: الحلم الكبير", d:"قررتِ توسيع المطعم وفتح فرع دولي.", need:function(){return S.branches.length>=1;}, rw:{coin:600, heart:2}},
+  {n:"الفصل السادس: مطبخ البنات العالمي", d:"اسمك بقى على كل لسان، وحلمك اتحقق.", need:function(){return S.level>=8;}, rw:{coin:1200, star:3}}
+];
+
+/* ===== الحالة ===== */
+function defState(){
+  return {
+    coin:250, heart:3, star:0, xp:0, level:1,
+    power:false, breakers:{main:false,kitchen:false,hall:false},
+    stock:{tomato:4,cucumber:4,meat:3,flour:5,sugar:4,choco:3,milk:4,herb:3,fruit:4},
+    spices:0, tray:[], recipes:[], ready:[], readyDrinks:[],
+    cook:null, lastRate:null, dirty:0, washes:0, dishesMade:0,
+    fac:{microwave:0,oven:0,fryer:0,dishwasher:0,espresso:0,blender:0,tea:0},
+    tools:{knife:0,pan:0,mixer:0},
+    deco:{bath:0,chairs:0,tableDeco:0,furniture:0,light:0,corner:0},
+    tables:[null,null,null,null,null,null,null,null],
+    vipMode:false, served:0, heartsLifetime:0, rating:3.0, reviews:[],
+    staff:{waiter:1,cook:1,cleaner:0}, uniforms:0, badges:0, employeeOfMonth:"",
+    girl:{outfit:0,hat:0,acc:0}, mirror:0,
+    photos:[], photoBg:0,
+    music:{track:0, notify:1, quiet:false, on:false},
+    mail:[], cakePicks:[], marble:0,
+    pets:{on:false, acc:0, clean:100},
+    secrets:{box:false, book:false, potions:0},
+    delivery:{scooter:0, orders:0, packed:0},
+    gifts:{given:0, souvenirs:0, loved:0},
+    garden:{tomatoAt:0, herbAt:0, watered:false},
+    recycleMat:0, recycle:{decor:0,vases:0,candles:0},
+    online:{hosted:0, wins:0},
+    weatherDay:"", weather:"مشمس", umbrellas:false, winter:false,
+    day:{date:"", gift:false, wheel:false, cook:0, serve:0, claims:[]},
+    week:{key:"", serve:0, claimed:false},
+    ach:[], story:0, branches:[], pending:0, totalEarned:0,
+    robot:{on:false,bat:0,color:0,owns:false},
+    experiments:[], magic:false, flavors:0,
+    mg:{fruitsUntil:0, fruitsScore:0, fruitsBest:0, seq:[], input:[], juice:[], speedUntil:0, speedScore:0, speedBest:0, juiceSeq:[], juiceInput:[]},
+    partiesDone:0, partiesCd:{},
+    muted:false, autoRead:true, bigText:false, simple:false,
+    cd:{}
+  };
+}
+var S = defState();
+
+function deepMerge(dst, src){
+  for (var k in src){
+    if (!Object.prototype.hasOwnProperty.call(src,k)) continue;
+    if (src[k] && typeof src[k]==="object" && !Array.isArray(src[k]) && dst[k] && typeof dst[k]==="object" && !Array.isArray(dst[k])) deepMerge(dst[k], src[k]);
+    else dst[k] = src[k];
+  }
+  return dst;
+}
+function load(){
+  try{
+    var raw = localStorage.getItem(LS);
+    if (raw){ var o = JSON.parse(raw); if (o && typeof o==="object"){ S = deepMerge(defState(), o); } }
+  }catch(e){}
+  dailyReset();
+}
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+
+/* ===== أدوات ===== */
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function todayKey(){ var d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+function weekKey(){ var d=new Date(); var one=d.getTime()-((d.getDay()||7)-1)*86400000; var m=new Date(one); return m.getFullYear()+"-W"+(m.getMonth()+1)+"-"+m.getDate(); }
+function fmtNum(n){ n=Math.floor(n); return String(n); }
+function sfx(n){
+  if (S.muted || S.music.quiet) return;
+  try{
+    var a = new Audio("sfx/"+n+".mp3");
+    a.volume = 0.5;
+    var p = a.play();
+    if (p && p.catch) p.catch(function(){});
+  }catch(e){}
+}
+function say(text){
+  if (!text) return;
+  window.__lastSpeech = text;
+  if (S.muted) return;
+  try{ if (window.Native && window.Native.speak){ window.Native.speak(text); return; } }catch(e){}
+  try{
+    if (window.speechSynthesis && window.SpeechSynthesisUtterance){
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = "ar"; u.rate = 0.95;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+  }catch(e){}
+}
+function toast(msg){
+  var d = document.getElementById("toast");
+  if (d){ d.textContent = msg; d.className = "show"; clearTimeout(toast._t); toast._t = setTimeout(function(){ d.className=""; }, 3400); }
+  say(msg);
+}
+function give(k,v){
+  if (k==="coin"){ S.coin += v; S.totalEarned += Math.max(0,v); }
+  else if (k==="heart"){ S.heart += v; if (v>0) S.heartsLifetime += v; }
+  else if (k==="star") S.star += v;
+  else if (k==="xp") addXp(v);
+}
+function spend(c){
+  if (S.coin < c){ toast("معاكي " + S.coin + " عملة بس، محتاجة " + c); sfx("error"); return false; }
+  S.coin -= c; return true;
+}
+function addXp(v){
+  S.xp += v;
+  var need = S.level*60;
+  while (S.xp >= need){ S.xp -= need; S.level++; need = S.level*60; toast("مبروك! وصلتي للمستوى " + S.level); }
+}
+function cdLeft(key, ms){
+  var t = S.cd[key] || 0;
+  var left = ms - (Date.now() - t);
+  return left > 0 ? Math.ceil(left/1000) : 0;
+}
+function cdStart(key){ S.cd[key] = Date.now(); }
+function cdBtn(label, action, arg, key, ms, cls){
+  var left = cdLeft(key, ms);
+  if (left > 0) return '<button class="btn d" disabled>' + label + ' — انتظري ' + left + ' ث</button>';
+  return b(label, action, arg, cls);
+}
+function hasIng(ing){ for (var i=0;i<ing.length;i++){ if ((S.stock[ing[i]]||0) <= 0) return false; } return true; }
+function useIng(ing){ for (var i=0;i<ing.length;i++) S.stock[ing[i]] = (S.stock[ing[i]]||0) - 1; }
+function dishById(id){
+  for (var i=0;i<DISHES.length;i++) if (DISHES[i].id===id) return DISHES[i];
+  for (var j=0;j<S.recipes.length;j++) if (S.recipes[j].id===id) return S.recipes[j];
+  return null;
+}
+function dishName(id){ var d=dishById(id); return d?d.n:id; }
+function dishBase(id){ var d=dishById(id); return d?d.base:15; }
+function drinkName(id){ for (var i=0;i<DRINKS.length;i++) if (DRINKS[i].id===id) return DRINKS[i].n; return id; }
+function starsTxt(n){ var s=""; for (var i=0;i<5;i++) s += i<n?"★":"☆"; return '<span class="stars">'+s+'</span>'; }
+function powerOn(){ return S.power; }
+function requirePower(){
+  if (!powerOn()){ toast("الكهرباء مقفولة. روحي لقسم المخزن والكهرباء وشغّلي القواطع"); return false; }
+  return true;
+}
+
+/* ===== التنقل والعرض ===== */
+var cur = "home", STACK = [];
+var SCREENS = {};
+function render(){
+  var f = SCREENS[cur] || SCREENS.home;
+  var el = document.getElementById("app");
+  el.innerHTML = f();
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+function go(id, quiet){
+  if (cur !== id){ STACK.push(cur); cur = id; }
+  render();
+  if (!quiet && S.autoRead) speakScreen();
+}
+function back(){
+  if (STACK.length){ cur = STACK.pop(); render(); return true; }
+  cur = "home"; render(); return false;
+}
+window.gameBack = back;
+
+function speakScreen(){
+  try{
+    var el = document.getElementById("app");
+    var t = (el.innerText || el.textContent || "").replace(/\s+/g," ").trim();
+    if (t.length > 420) t = t.slice(0,420) + "…";
+    say(t);
+  }catch(e){}
+}
+function statsBar(){
+  return '<div class="res"><span class="chip">'+ICON.coin+' '+fmtNum(S.coin)+'</span><span class="chip">'+ICON.heart+' '+S.heart+'</span><span class="chip">'+ICON.star+' '+S.star+'</span><span class="chip">مستوى '+S.level+'</span></div>';
+}
+function head(title){
+  return '<div class="topbar"><button class="ibtn" onclick="act(\'back\')" aria-label="رجوع">⟵</button><div class="title">'+title+'</div><button class="ibtn" onclick="speakScreen()" aria-label="إعادة نطق الشاشة">🔊</button></div>'+statsBar();
+}
+function card(t,body){ return '<div class="card"><div class="ct">'+t+'</div>'+body+'</div>'; }
+function b(label,a,arg,cls){
+  var oc = "act('"+a+"'";
+  if (arg !== undefined && arg !== null) oc += ",'"+arg+"'";
+  oc += ")";
+  return '<button class="btn '+(cls||"")+'" onclick="'+oc+'">'+label+'</button>';
+}
+function bar(pct, cls){
+  pct = Math.max(0, Math.min(100, pct));
+  return '<div class="bar '+(cls||"")+'"><i style="width:'+pct+'%"></i></div>';
+}
+function pendingLine(){
+  if (S.pending <= 0) return '';
+  return '<div class="card" style="background:#fff5d6"><div class="kv"><span>أرباح محتاجة استلام من الكاشير</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+b("روحي للكاشير واستلمي", "go", "story", "o sm")+'</div>';
+}
+
+/* ===== اليوم والأسبوع ===== */
+function dailyReset(){
+  var t = todayKey();
+  if (S.day.date !== t){ S.day = {date:t, gift:false, wheel:false, cook:0, serve:0, claims:[]}; }
+  var w = weekKey();
+  if (S.week.key !== w){ S.week = {key:w, serve:0, claimed:false}; }
+  if (S.weatherDay !== t){
+    S.weatherDay = t;
+    var h = 0; for (var i=0;i<t.length;i++) h += t.charCodeAt(i);
+    S.weather = ["مشمس","مطر","ثلج","غائم"][h % 4];
+  }
+}
+function dayDishes(){
+  var t = todayKey(); var h = 0; for (var i=0;i<t.length;i++) h += t.charCodeAt(i)*3;
+  var out = [];
+  for (var k=0;k<3;k++) out.push(DISHES[(h + k*2) % DISHES.length]);
+  return out;
+}
+function checkAch(){
+  for (var i=0;i<ACH.length;i++){
+    var a = ACH[i];
+    if (S.ach.indexOf(a.id) >= 0) continue;
+    var ok = false;
+    try{ ok = a.chk(); }catch(e){}
+    if (ok){
+      S.ach.push(a.id);
+      S.star += a.s; S.coin += 50;
+      setTimeout(function(){ toast("وسام جديد: " + a.n + " +" + a.s + " نجمة"); }, 400);
+    }
+  }
+}
+
+/* ===== الأقسام ===== */
+var SECTIONS = [
+  {id:"cook", n:"تحضير الأطباق والابتكار", g:"المطبخ"},
+  {id:"drinks", n:"المشروبات والعصائر", g:"المطبخ"},
+  {id:"store", n:"المخزن والكهرباء", g:"المطبخ"},
+  {id:"decor", n:"ديكور المطعم", g:"المطعم"},
+  {id:"tables", n:"الطاولات والزبائن", g:"المطعم"},
+  {id:"shop", n:"التسوق والأدوات", g:"المطعم"},
+  {id:"staffstyle", n:"أزياء الطاقم", g:"المطعم"},
+  {id:"delivery", n:"التوصيل السريع", g:"المطعم"},
+  {id:"weather", n:"الطقس والطلبات", g:"المطعم"},
+  {id:"chall", n:"التحديات والمسابقات", g:"الفعاليات"},
+  {id:"minigames", n:"الألعاب المصغرة", g:"الفعاليات"},
+  {id:"online", n:"اللعب الجماعي", g:"الفعاليات"},
+  {id:"parties", n:"الحفلات والمناسبات", g:"الفعاليات"},
+  {id:"pets", n:"الحيوانات الأليفة", g:"الفعاليات"},
+  {id:"garden", n:"الحديقة الزراعية", g:"الفعاليات"},
+  {id:"wardrobe", n:"أزياء الشيف", g:"الشخصية"},
+  {id:"camera", n:"الكاميرا والألبوم", g:"الشخصية"},
+  {id:"music", n:"الموسيقى والأصوات", g:"الشخصية"},
+  {id:"branches", n:"الفروع الدولية", g:"الإدارة"},
+  {id:"secrets", n:"أسرار الجدة", g:"الإدارة"},
+  {id:"flavors", n:"معمل النكهات", g:"الإدارة"},
+  {id:"robot", n:"الروبوت المساعد", g:"الإدارة"},
+  {id:"recycle", n:"إعادة التدوير", g:"الإدارة"},
+  {id:"gifts", n:"الهدايا والتذكارات", g:"الإدارة"},
+  {id:"story", n:"القصة والمجتمع", g:"التقدّم"},
+  {id:"rewards", n:"المكافآت اليومية", g:"التقدّم"},
+  {id:"stats", n:"الإحصائيات والأوسمة", g:"التقدّم"},
+  {id:"settings", n:"الإعدادات والوصول", g:"التقدّم"}
+];
+
+SCREENS.home = function(){
+  var xpNeed = S.level*60;
+  var h = head("مطبخ البنات");
+  h += '<div class="hero"><div class="h1">أهلاً يا شيف 👩‍🍳</div><div class="small">مطعمك الصغير مستنيكي. اختاري قسم وابدأي</div>'+
+       bar((S.xp/xpNeed)*100)+'<div class="small">المستوى '+S.level+' — '+S.xp+' / '+xpNeed+' خبرة</div></div>';
+  h += pendingLine();
+  if (S.dirty >= 5) h += '<div class="hint">فيه '+S.dirty+' طبق متسخ في الحوض — ده بيأثر على تقييم النظافة. اغسليهم من قسم المخزن.</div>';
+  var groups = [];
+  for (var i=0;i<SECTIONS.length;i++){ if (groups.indexOf(SECTIONS[i].g) < 0) groups.push(SECTIONS[i].g); }
+  for (var g=0; g<groups.length; g++){
+    h += '<div class="grp">'+groups[g]+'</div><div class="grid2">';
+    for (var k=0;k<SECTIONS.length;k++){
+      var sec = SECTIONS[k];
+      if (sec.g !== groups[g]) continue;
+      var num = k+1;
+      h += '<button class="tile" onclick="act(\'go\',\''+sec.id+'\')"><b>قسم '+num+'</b>'+sec.n+'</button>';
+    }
+    h += '</div>';
+  }
+  h += '<div class="card"><div class="small">مطبخ البنات — لعبة مطعم كاملة بالصوت. كل الأزرار شغالة وكل حاجة بتتحفظ تلقائي.</div></div>';
+  return h;
+};
+
+/* ===== 1. تحضير الأطباق ===== */
+SCREENS.cook = function(){
+  var h = head("تحضير الأطباق والابتكار");
+  if (!S.power) h += '<div class="hint">المطبخ من غير كهرباء. شغّلي القواطع من قسم المخزن الأول.</div>';
+
+  var trayBtns = "";
+  for (var k in ING){
+    var on = S.tray.indexOf(k) >= 0;
+    trayBtns += '<button class="btn '+(on?"p":"")+' sm" onclick="act(\'tray\',\''+k+'\')">'+(on?"✓ ":"")+ING[k]+' ('+(S.stock[k]||0)+')</button>';
+  }
+  h += card("صينية السنابتكر",
+    '<div class="small">اختاري 3 مكونات على مزاجك، ولو طلعوا طبق معروف هيتعرف عليه، ولو جديدة هتكون وصفة باسمك.</div>'+
+    '<div class="grid2">'+trayBtns+'</div>'+
+    '<div class="small">المختار: '+(S.tray.length? S.tray.map(function(x){return ING[x];}).join(" + ") : "لسه فاضي")+'</div>'+
+    (S.tray.length? b("امسحي الصينية","trayClear",null,"d sm"):"")+
+    b("اعرفي الطبق من المكونات","trayGuess",null,"g sm")
+  );
+
+  h += card("ابتكار وتسمية الطبق",
+    '<div class="small">لو الصينية فيها مكونات جديدة، سمّي الطبق وحددي سعره وهيظهر في قائمة الوصفات.</div>'+
+    '<input id="dname" type="text" placeholder="اسم الطبق الجديد" aria-label="اسم الطبق الجديد">'+
+    '<input id="dprice" type="number" inputmode="numeric" placeholder="السعر بالعملات" aria-label="سعر الطبق">'+
+    b("احفظي الوصفة في القائمة","nameDish",null,"p sm")
+  );
+
+  var dd = dayDishes();
+  var daily = "";
+  for (var i=0;i<dd.length;i++){
+    var d = dd[i];
+    var can = hasIng(d.ing);
+    daily += '<div class="kv"><span>'+d.n+'<div class="small">'+d.ing.map(function(x){return ING[x];}).join(" + ")+'</div></span>'+
+             (can ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+d.id+'\')">اطبخي</button>' : '<span class="tag o">مكونات ناقصة</span>')+'</div>';
+  }
+  h += card("قائمة الوصفات اليومية", daily);
+
+  if (S.recipes.length){
+    var mine = "";
+    for (var r=0;r<S.recipes.length;r++){
+      var rr = S.recipes[r];
+      mine += '<div class="kv"><span>'+rr.n+'<div class="small">'+rr.ing.map(function(x){return ING[x];}).join(" + ")+' — سعرها '+rr.base+'</div></span>'+
+              (hasIng(rr.ing) ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+rr.id+'\')">اطبخي</button>' : '<span class="tag o">ناقصة</span>')+'</div>';
+    }
+    h += card("وصفاتي المبتكرة", mine);
+  }
+
+  h += card("محطات العمل", 
+    b("محطة تقطيع الخضار واللحوم","go","cut")+
+    b("شاشة الطهي والتحمير","go","stove")+
+    b("طاولة التزيين والتقديم","go","deco")+
+    b("نظام تقييم الطبخة","go","rate")
+  );
+  return h;
+};
+
+SCREENS.cut = function(){
+  var h = head("محطة التقطيع");
+  if (!S.cook){ return h + card("مفيش طبق قيد التحضير","<div class=\'small\'>اختاري طبق من قائمة الوصفات الأول.</div>"+b("رجوع للأطباق","go","cook","p")); }
+  var c = S.cook;
+  h += card(c.n, '<div class="small">قطّعي المكونات بخطوات مرتبة. كل ضغطة تقطعة — محتاجة 3 تقطعات.</div>'+
+    bar((c.cut/3)*100,"g")+
+    '<div class="kv"><span>التقطيع</span><b>'+c.cut+' / 3</b></div>'+
+    (c.cut < 3 ? b("قطّعي خطوة","cookCut",null,"p bigbtn") : b("خلصنا التقطيع — إلى الطهي","cookToStove",null,"g bigbtn"))
+  );
+  h += '<div class="hint">نصيحة: التقطيع الكامل بيزود جودة الطبق.</div>';
+  return h;
+};
+
+SCREENS.stove = function(){
+  var h = head("الطهي والتحمير");
+  if (!S.cook){ return h + card("مفيش طبق","<div class=\'small\'>ابدأي طبق الأول.</div>"+b("رجوع","go","cook","p")); }
+  var c = S.cook;
+  var temps = [160,180,200,220];
+  var tb = '<div class="grid2">';
+  for (var i=0;i<temps.length;i++){
+    tb += '<button class="btn '+(c.temp===temps[i]?"p":"")+' sm" onclick="act(\'setTemp\','+temps[i]+')">'+temps[i]+' درجة'+(temps[i]===180?" ⭐":"")+'</button>';
+  }
+  tb += '</div>';
+  h += card("درجة الحرارة",
+    tb+'<div class="small">درجة 180 هي المثالية. 220 بتحرق الأكل بسرعة.</div>'
+  );
+  h += card("متابعة النضج",
+    bar(Math.min(100, c.done))+
+    '<div class="kv"><span>النضج</span><b>'+Math.min(100,c.done)+'%</b></div>'+
+    (c.burnt?'<div class="tag o">الطبق اتحرق! هينقص تقييمه</div>':'')+
+    b("تابعي الطهي","cookProgress",null,"p bigbtn")+
+    (c.done>=50 ? b("ارفعي الطبق من النار","cookToDeco",null,"g") : '<div class="small">لسه محتاج نضج أكتر قبل الرفع.</div>')
+  );
+  return h;
+};
+
+SCREENS.deco = function(){
+  var h = head("التزيين والتقديم");
+  if (!S.cook){ return h + card("مفيش طبق","<div class=\'small\'>ابدأي طبق الأول.</div>"+b("رجوع","go","cook","p")); }
+  var c = S.cook;
+  var gb = '<div class="grid2">';
+  for (var i=0;i<GARNISH.length;i++){
+    var on = c.garn.indexOf(i) >= 0;
+    gb += '<button class="btn '+(on?"p":"")+' sm" onclick="act(\'garnish\','+i+')">'+(on?"✓ ":"")+GARNISH[i]+'</button>';
+  }
+  gb += '</div>';
+  h += card("أدوات التزيين والصوصات",
+    '<div class="small">اختاري لحد 3 لمسات. كل لمسة بتزود تقييم الطبق.</div>'+gb+
+    b("قدّمي الطبق للتقييم","cookRate",null,"g bigbtn")
+  );
+  return h;
+};
+
+SCREENS.rate = function(){
+  var h = head("تقييم الطبخة");
+  var r = S.lastRate;
+  if (!r){ return h + card("مفيش تقييم لسه","<div class=\'small\'>اطبخي طبق الأول.</div>"+b("رجوع للأطباق","go","cook","p")); }
+  h += '<div class="card center"><div style="font-size:22px;font-weight:900;margin-bottom:6px">'+r.n+'</div>'+
+       starsTxt(r.stars)+'<div style="font-size:30px;font-weight:900;margin:8px 0">'+r.score+' / 100</div>'+
+       '<div class="small">'+r.note+'</div></div>';
+  h += card("النتيجة",
+    '<div class="kv"><span>عملات (في الكاشير)</span><b>+'+r.coin+'</b></div>'+
+    '<div class="kv"><span>نجوم</span><b>+'+r.star+'</b></div>'+
+    '<div class="kv"><span>خبرة</span><b>+'+r.xp+'</b></div>'+
+    '<div class="kv"><span>قلوب</span><b>+'+r.heart+'</b></div>'
+  );
+  h += b("رجوع للمطبخ","go","cook","p")+b("شوفي الأطباق الجاهزة","go","tables","o");
+  return h;
+};
+
+/* ===== 2. المخزن والكهرباء ===== */
+SCREENS.store = function(){
+  var h = head("المخزن والكهرباء");
+  var br = S.breakers;
+  var pwr = (br.main && br.kitchen && br.hall);
+  h += card("لوحة مفاتيح وقواطع الكهرباء",
+    '<div class="kv"><span>القاطع الرئيسي</span><button class="btn '+(br.main?"g":"d")+' sm" style="width:auto" onclick="act(\'breaker\',\'main\')">'+(br.main?"مفتوح":"مقفول")+'</button></div>'+
+    '<div class="kv"><span>قاطع المطبخ</span><button class="btn '+(br.kitchen?"g":"d")+' sm" style="width:auto" onclick="act(\'breaker\',\'kitchen\')">'+(br.kitchen?"مفتوح":"مقفول")+'</button></div>'+
+    '<div class="kv"><span>قاطع الصالة</span><button class="btn '+(br.hall?"g":"d")+' sm" style="width:auto" onclick="act(\'breaker\',\'hall\')">'+(br.hall?"مفتوح":"مقفول")+'</button></div>'+
+    '<div class="small">'+(pwr?"✅ الكهرباء شغالة في كل المطعم":"⚠️ لازم الثلاثة مفتوحين عشان الكهرباء تشتغل")+'</div>'
+  );
+  var st = "";
+  for (var k in ING){ st += '<div class="kv"><span>'+ING[k]+'</span><b>'+ (S.stock[k]||0) +'</b></div>'; }
+  h += card("باب المخزن الرئيسي — كميات المؤن", st + b("روحي لمتجر المؤن","go","shop","o sm"));
+  h += card("ثلاجة المكونات الطازجة",
+    '<div class="small">الطازج بيتحفظ في الثلاجة: طماطم، خيار، لبن، فواكه، أعشاب.</div>'+
+    '<div class="kv"><span>حالة الثلاجة</span><b>'+(S.power?"شغالة":"مقفولة")+'</b></div>'+
+    b("اطلبي مؤن طازجة (30 عملة)","buyFresh",null,"g sm")
+  );
+  h += card("فريزر التجميد العميق",
+    '<div class="kv"><span>لحم مجمد</span><b>'+(S.stock.meat||0)+'</b></div>'+
+    b("اطلبي لحم مجمد (35 عملة)","buyMeat",null,"g sm")
+  );
+  h += card("رفوف التوابل والبهارات",
+    '<div class="kv"><span>بهاراتك</span><b>'+S.spices+'</b></div>'+
+    '<div class="small">كل بهار بيزود جودة الطبق الجاي.</div>'+
+    b("اشتري بهارات (25 عملة)","buySpice",null,"o sm")
+  );
+  h += card("غسالة الصحون والأواني",
+    '<div class="kv"><span>أطباق متسخة</span><b>'+S.dirty+'</b></div>'+
+    '<div class="small">'+(S.fac.dishwasher?"غسالة كهربائية مستواها "+S.fac.dishwasher:"لسه عندك حوض يدوي")+'</div>'+
+    (S.dirty>0 ? b("اغسلي الأطباق","wash",null,"p sm") : '<div class="small">كل حاجة نضيفة ✨</div>')
+  );
+  h += card("لوحة قوائم التسوق",
+    '<div class="small">الناقص لوصفات اليوم:</div>'+missingList()+
+    b("اشتري كل الناقص","buyMissing",null,"g sm")
+  );
+  h += card("سلة المهملات وإعادة التدوير",
+    '<div class="kv"><span>خامات إعادة تدوير</span><b>'+S.recycleMat+'</b></div>'+
+    b("ارمي بقايا وجمعي خامات","trash",null,"o sm")
+  );
+  return h;
+};
+
+function missingList(){
+  var dd = dayDishes();
+  var need = {};
+  for (var i=0;i<dd.length;i++){
+    for (var k=0;k<dd[i].ing.length;k++){
+      var key = dd[i].ing[k];
+      need[key] = (need[key]||0) + 1;
+    }
+  }
+  var out = "";
+  for (var kk in need){
+    var have = S.stock[kk]||0;
+    if (have < need[kk]) out += '<span class="tag o">'+ING[kk]+' — محتاج '+(need[kk]-have)+'</span>';
+  }
+  return out || '<span class="tag g">كل المكونات موجودة</span>';
+}
+
+/* ===== 3. الديكور ===== */
+SCREENS.decor = function(){
+  var h = head("ديكور وتصميم المطعم");
+  var items = [
+    ["bath","صالة الحمامات الفاخرة",["بانيو فاخر","دش مطري","مرحاض أنيق","حوض غسيل","حوض أسنان","صابون وشامبو وبلسم","مستحضرات تجميل","مناديل مبللة وجافة","قطع قطن"],120],
+    ["chairs","متجر الكراسي والمقاعد",["كرسي مريح","كرسي ملكي","كرسي أطفال","كنبة انتظار"],90],
+    ["tableDeco","زينة الطاولات والحلويات",["شوكولاتة فاخرة","حلويات ملوّنة","شمعدان","باقة ورد"],80],
+    ["furniture","متجر الأثاث وألوان المطبخ",["خزائن خشبية","أرضيات رخام","جدران وردية","طقم ستائر"],150],
+    ["light","إضاءة المطبخ السحرية",["إضاءة هادئة","إضاءة مشرقة","نجوم معلقة"],70],
+    ["corner","ركن الاسترخاء والقهوة",["فوتيه مريح","طاولة قهوة","رف كتب"],110]
+  ];
+  for (var i=0;i<items.length;i++){
+    var id = items[i][0], name = items[i][1], list = items[i][2], cost = items[i][3];
+    var lvl = S.deco[id];
+    var mylist = "";
+    for (var k=0;k<list.length;k++) mylist += '<span class="tag '+(k<lvl?"g":"")+'">'+list[k]+'</span>';
+    h += card(name + " — مستوى " + lvl,
+      mylist + '<div class="small">كل ترقية بتزود تقييم المطعم والنظافة.</div>'+
+      b("ترقية ("+cost+" عملة)","upDeco",id,"p sm")
+    );
+  }
+  h += card("أجهزة المطبخ الحديثة",
+    devRow("microwave","الميكروويف الذكي",140)+
+    devRow("oven","البوتاجاز والفرن الحديث",160)+
+    devRow("fryer","المقلاية الكهربائية العميقة",150)+
+    devRow("dishwasher","غسالة الصحون الكهربائية",180)
+  );
+  h += card("رخامة ومنضدة التحضير",
+    '<div class="small">مساحة التحضير والعجين. ترقيتها بتزود سرعة وجودة الأطباق.</div>'+
+    b("اطلبي رخامة أكبر","upMarble",null,"o sm")
+  );
+  h += card("استوديو تصوير الوجبات", b("ادخلي الاستوديو","go","camera","p sm"));
+  return h;
+};
+
+function devRow(id, name, cost){
+  var lvl = S.fac[id];
+  return '<div class="kv"><span>'+name+'<div class="small">مستوى '+lvl+' / 5</div></span>'+
+    (lvl>=5 ? '<span class="tag g">أعلى مستوى</span>' : '<button class="btn o sm" style="width:auto" onclick="act(\'upFac\',\''+id+'\')">ترقية '+((lvl+1)*cost)+'</button>')+'</div>';
+}
+
+/* ===== 4. الطاولات والزبائن ===== */
+SCREENS.tables = function(){
+  var h = head("الطاولات والزبائن");
+  h += card("إدارة الصالة",
+    '<div class="kv"><span>التقييم العام</span><b>'+starsTxt(Math.round(S.rating))+' '+S.rating.toFixed(1)+'</b></div>'+
+    '<div class="kv"><span>زبائن تم خدمتهم</span><b>'+S.served+'</b></div>'+
+    b("استقبلي زبونة جديدة","arrive",null,"p")+
+    (S.vipMode ? '<div class="tag o">الزبونة الجاية VIP</div>' : b("فعّلي طاولة VIP الجاية","vipNext",null,"o sm"))+
+    b("استدعاء طاقم الخدمة (نادل)","callStaff",null,"g sm")+
+    b("تفاصيل آراء الزبائن","go","reviews","sm")
+  );
+  var any = false;
+  for (var i=0;i<S.tables.length;i++){
+    var g = S.tables[i];
+    if (!g) { h += '<div class="card"><div class="kv"><span>طاولة '+(i+1)+'</span><span class="tag">فاضية</span></div></div>'; continue; }
+    any = true;
+    var pat = patLeft(g);
+    h += '<div class="card"><div class="kv"><span>'+(g.vip?"طاولة VIP ":"طاولة ")+(i+1)+' — '+g.name+'</span>'+(g.vip?'<span class="tag o">VIP</span>':'')+'</div>'+
+      '<div class="small">الطلب: '+dishName(g.food)+' + '+drinkName(g.drink)+'</div>'+
+      bar(pat, pat>50?"g":(pat>25?"":"r"))+
+      '<div class="small">الصبر: '+pat+'%</div>'+
+      '<div class="row">'+b("قدّمي الطلب","serve",String(i),"g sm")+b("طرد الخروج","kick",String(i),"d sm")+'</div></div>';
+  }
+  if (!any) h += '<div class="small center">مفيش زبائن دلوقتي — اضغطي استقبلي زبونة.</div>';
+  h += card("الأطباق الجاهزة",
+    (S.ready.length? S.ready.map(function(r,i){ return '<div class="kv"><span>'+r.n+' '+starsTxt(r.stars)+'</span><b>'+r.score+'</b></div>'; }).join("") : '<div class="small">مفيش أطباق جاهزة — اطبخي من قسم الأطباق.</div>')+
+    '<div class="small">مشروبات جاهزة: '+(S.readyDrinks.length? S.readyDrinks.map(drinkName).join("، ") : "مفيش")+'</div>'+
+    b("تحضير مشروبات","go","drinks","o sm")
+  );
+  return h;
+};
+
+function patLeft(g){
+  var p = 100 - Math.floor((Date.now() - g.at)/5000);
+  return Math.max(0, Math.min(100, p));
+}
+
+SCREENS.reviews = function(){
+  var h = head("آراء الزبائن");
+  if (!S.reviews.length) return h + card("لسه مفيش تعليقات","<div class=\'small\'>اخدمي زبائن وهتلاقي آراءهم هنا.</div>"+b("رجوع","go","tables","p sm"));
+  var list = "";
+  for (var i=0;i<Math.min(20,S.reviews.length);i++){
+    var r = S.reviews[i];
+    list += '<div class="kv"><span>'+r.n+'<div class="small">'+r.t+'</div></span>'+starsTxt(r.s)+'</div>';
+  }
+  return h + card("تعليقات الزبائن", list) + b("رجوع للطاولات","go","tables","p");
+};
+
+/* ===== 5. التحديات ===== */
+SCREENS.chall = function(){
+  var h = head("التحديات والمسابقات");
+  h += card("مسابقة الشيف الصغير",
+    '<div class="small">تحدي وقت: اضغطي 5 ضغطات سريعة قبل ما الوقت يخلص واكسبي نجوم.</div>'+
+    (S.mg.speedUntil && S.mg.speedUntil > Date.now()
+      ? '<div class="kv"><span>الوقت الباقي</span><b>'+Math.ceil((S.mg.speedUntil-Date.now())/1000)+' ث</b></div>'+b("اضغطي بسرعة!","speedTap",null,"p bigbtn")
+      : b("ابدأي التحدي (30 ثانية)","speedStart",null,"p"))+
+    '<div class="small">أفضل نتيجة: '+(S.mg.speedBest||0)+' ضغطة</div>'
+  );
+  h += card("لوحة التحديات اليومية", b("روحي لمكافآت اليوم","go","rewards","g sm"));
+  h += card("تحدي تزيين الكيك المبتكر",
+    '<div class="small">اختاري 3 لمسات تزيين للكيكة بألوان وأشكال مختلفة.</div>'+
+    '<div class="grid3">'+
+    cakeBtn(0,"طبقة وردي")+cakeBtn(1,"طبقة شوكولاتة")+cakeBtn(2,"طبقة فانيليا")+
+    '</div><div class="grid3">'+
+    cakeBtn(3,"فراولة")+cakeBtn(4,"ورد سكري")+cakeBtn(5,"نجوم ذهبية")+
+    '</div>'+
+    '<div class="small">المختار: '+(S.cakePicks||[]).length+' / 3</div>'+
+    b("قدّمي الكيكة للجنة","cakeSubmit",null,"p sm")
+  );
+  h += card("ساحة الطبخ الجماعي",
+    '<div class="small">تنافسي مع طاهيات تانيات — النتيجة عشوائية بس المتعة مضمونة.</div>'+
+    b("ادخلي الساحة","groupCook",null,"g sm")
+  );
+  h += card("سجل الإنجازات والجوائز", b("شوفي الأوسمة","go","stats","o sm"));
+  h += card("رسائل التحفيز اليومية", '<div class="small">'+motivation()+'</div>');
+  h += card("صندوق البريد", b("افتحي صندوق الرسائل ("+(S.mail||[]).length+")","go","mailbox","p sm"));
+  return h;
+};
+function cakeBtn(i,label){
+  var on = (S.cakePicks||[]).indexOf(i)>=0;
+  return '<button class="btn '+(on?"p":"")+' sm" onclick="act(\'cakePick\','+i+')">'+(on?"✓ ":"")+label+'</button>';
+}
+function motivation(){
+  var arr = ["كل طبق بتعمليه هو خطوة لحلمك الكبير.","النهارده يوم جديد لمطبخك ولقلوب زبائنك.","الجودة مش صدفة — هي حب في كل تفصيلة.","ابتسمي، ابتسامتك بتظهر في طعم الأكل.","مطعمك الصغير هيكبر بإصرارك."];
+  return arr[new Date().getDate() % arr.length];
+}
+SCREENS.mailbox = function(){
+  var h = head("صندوق الرسائل");
+  var m = S.mail || [];
+  if (!m.length) return h + card("الصندوق فاضي","<div class=\'small\'>هتوصلك رسائل من الزبائن والطاقم مع الوقت.</div>"+b("رجوع","back","","p sm"));
+  var list = "";
+  for (var i=m.length-1;i>=0;i--) list += '<div class="kv"><span>'+m[i].t+'<div class="small">'+m[i].d+'</div></span></div>';
+  return h + card("رسائلك", list) + b("رجوع","back","","p");
+};
+
+/* ===== 6. التسوق والأدوات ===== */
+SCREENS.shop = function(){
+  var h = head("التسوق وتحديث الأدوات");
+  h += card("متجر أدوات الطهي المطورة",
+    toolRow("knife","سكينة حادة",90)+
+    toolRow("pan","مقلاة غير لاصقة",110)+
+    toolRow("mixer","عجّانة كهربائية",130)
+  );
+  h += card("ترقية سرعة الأجهزة",
+    '<div class="small">كل جهاز بيوصل 5 مستويات — أسرع وأجود.</div>'+
+    devRow("oven","سرعة الفرن",120)+
+    devRow("microwave","سرعة الميكروويف",100)+
+    devRow("fryer","سرعة المقلاية",110)+
+    devRow("espresso","ماكينة الإسبريسو",120)+
+    devRow("blender","الخلاط",100)+
+    devRow("tea","بار الشاي",90)
+  );
+  h += card("متجر المؤن",
+    ingRow("tomato",12)+ingRow("cucumber",10)+ingRow("meat",22)+ingRow("flour",9)+
+    ingRow("sugar",8)+ingRow("choco",16)+ingRow("milk",10)+ingRow("herb",9)+ingRow("fruit",14)
+  );
+  h += card("أزياء الشيف الأنيقة", b("خزانة ملابس الشيف","go","wardrobe","p sm"));
+  h += card("ورشة الأفكار والابتكار",
+    '<div class="small">دمجي مكونات عشوائية لتوليد فكرة وصفة جديدة (45 عملة).</div>'+
+    b("ولّدي فكرة وصفة","idea",null,"g sm")
+  );
+  return h;
+};
+function toolRow(id,label,cost){
+  var lvl = S.tools[id];
+  return '<div class="kv"><span>'+label+'<div class="small">مستوى '+lvl+' / 5</div></span>'+
+    (lvl>=5?'<span class="tag g">أعلى مستوى</span>':'<button class="btn o sm" style="width:auto" onclick="act(\'upTool\',\''+id+'\')">ترقية '+((lvl+1)*cost)+'</button>')+'</div>';
+}
+function ingRow(id,cost){
+  return '<div class="kv"><span>'+ING[id]+' <span class="small">(عندك '+S.stock[id]+')</span></span>'+
+    '<button class="btn g sm" style="width:auto" onclick="act(\'buyIng\',\''+id+'\')">+1 — '+cost+'</button></div>';
+}
+
+/* ===== 7. القصة والمجتمع ===== */
+SCREENS.story = function(){
+  var h = head("القصة والمهام اليومية");
+  var list = "";
+  for (var i=0;i<STORY.length;i++){
+    var ch = STORY[i];
+    var done = i < S.story;
+    var ok = false; try{ ok = ch.need(); }catch(e){}
+    list += '<div class="card"><div class="ct">'+ch.n+'</div><div class="small">'+ch.d+'</div>'+
+      (done ? '<span class="tag g">تم</span>' :
+        ok ? b("استلمي المكافأة","storyClaim",String(i),"p sm") : '<span class="tag o">لسه مش جاهز</span>')+'</div>';
+  }
+  h += list;
+  h += card("الكاشير واستلام العملات",
+    '<div class="kv"><span>أرباح مستنية الاستلام</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+
+    b("استلمي الأرباح يدوياً","cashier",null,"g bigbtn")
+  );
+  h += card("دفتر ملاحظات الوصفات",
+    '<div class="small">وصفاتك: '+(S.recipes.length ? S.recipes.map(function(r){return r.n;}).join("، ") : "لسه مفيش وصفات ابتكرتيها")+'</div>'
+  );
+  h += card("توظيف العمال والموظفين",
+    staffRow("waiter","نادلة",150)+staffRow("cook","مساعد شيف",200)+staffRow("cleaner","عاملة نظافة",120)
+  );
+  h += card("حفل الافتتاح السنوي",
+    '<div class="small">احتفالي بمطعمك مع الزبائن والطاقم.</div>'+
+    cdBtn("نظّمي حفل الافتتاح (250 عملة)","opening","","opening",86400000,"o sm")
+  );
+  h += card("تابعنا على التليجرام",
+    '<div class="small">قناة اللعبة الرسمية وتحديثاتها.</div>'+
+    '<a class="btn p" href="https://t.me/BlindTechExplain" target="_blank">قناة BlindTechExplain على التليجرام</a>'
+  );
+  return h;
+};
+function staffRow(id,label,cost){
+  return '<div class="kv"><span>'+label+'</span><b>'+S.staff[id]+'</b>'+
+    '<button class="btn o sm" style="width:auto" onclick="act(\'hire\',\''+id+'\')">وظّفي '+cost+'</button></div>';
+}
+
+/* ===== 8. الفروع الدولية ===== */
+SCREENS.branches = function(){
+  var h = head("التوسع العالمي والفروع");
+  h += card("خطة التطوير الإقليمي",
+    '<div class="small">افتحي فروع في مدن عالمية، وكل فرع بيجيب أرباح كل فترة.</div>'+
+    '<div class="kv"><span>عدد الفروع</span><b>'+S.branches.length+'</b></div>'
+  );
+  for (var i=0;i<CITIES.length;i++){
+    var city = CITIES[i];
+    var cost = 500 * (i+1);
+    var owned = null;
+    for (var k=0;k<S.branches.length;k++) if (S.branches[k].city===i) owned = S.branches[k];
+    if (owned){
+      var lvl = owned.lvl||1;
+      h += '<div class="card"><div class="kv"><span>فرع '+city+' — مستوى '+lvl+'</span><span class="tag g">مفتوح</span></div>'+
+        '<div class="small">أرباح متراكمة: '+ICON.coin+' '+fmtNum(branchPending(owned))+'</div>'+
+        '<div class="row">'+b("تحصيل الأرباح","branchCollect",String(i),"g sm")+b("ترقية الفرع","branchUp",String(i),"o sm")+'</div></div>';
+    } else {
+      h += '<div class="card"><div class="kv"><span>فتح فرع '+city+'</span><span class="small">'+cost+' عملة</span></div>'+
+        b("افتحي الفرع","branchOpen",String(i),"p sm")+'</div>';
+    }
+  }
+  return h;
+};
+function branchPending(o){
+  var mins = Math.floor((Date.now() - (o.last||Date.now()))/60000);
+  return Math.max(0, Math.min(600, mins * 3 * (o.lvl||1)));
+}
+
+/* ===== 9. الحفلات ===== */
+SCREENS.parties = function(){
+  var h = head("الحفلات والمناسبات");
+  h += card("حفلة عيد ميلاد",
+    '<div class="small">ديكور وبالونات وكيكة كبيرة — بتجيب قلوب ورضا.</div>'+
+    cdBtn("نظّمي حفلة (200 عملة)","party","birthday","p_birthday",3600000,"p sm")
+  );
+  h += card("بوفيه المأكولات المفتوحة",
+    '<div class="small">بوفيه مفتوح بيجذب زبائن أكتر.</div>'+
+    cdBtn("افتحي البوفيه (350 عملة)","party","buffet","p_buffet",3600000,"o sm")
+  );
+  h += card("دعوة الشخصيات المشهورة",
+    '<div class="small">نجم أو مؤثرة — بتزود التقييم بشكل كبير.</div>'+
+    cdBtn("وجّهي الدعوة (700 عملة)","party","star","p_star",7200000,"g sm")
+  );
+  h += '<div class="small center">حفلات تم تنظيمها: '+S.partiesDone+'</div>';
+  return h;
+};
+
+/* ===== 10. الحيوانات ===== */
+SCREENS.pets = function(){
+  var h = head("ركن الحيوانات الأليفة");
+  h += card("ركن القطط الأليفة",
+    '<div class="kv"><span>الحالة</span><b>'+(S.pets.on?"مفتوح 🐱":"مقفول")+'</b></div>'+
+    '<div class="small">قطط لطيفة بتسلي الزبائن وبتزود التقييم.</div>'+
+    b(S.pets.on?"اقفلي الركن":"افتحي الركن (180 عملة)","petToggle",null,S.pets.on?"d":"p")
+  );
+  h += card("متجر إكسسوارات الحيوانات",
+    '<div class="kv"><span>إكسسوارات عندك</span><b>'+S.pets.acc+'</b></div>'+
+    b("اشتري إكسسوار (60 عملة)","petAcc",null,"o sm")
+  );
+  h += card("نظافة ركن الحيوانات",
+    '<div class="kv"><span>نظافة الركن</span><b>'+S.pets.clean+'%</b></div>'+
+    bar(S.pets.clean, S.pets.clean>50?"g":"r")+
+    b("نظّفي الركن","petClean",null,"g sm")
+  );
+  return h;
+};
+
+/* ===== 11. الألعاب المصغرة ===== */
+SCREENS.minigames = function(){
+  var h = head("الألعاب المصغرة");
+  h += card("تحدي صيد المكونات السريعة",
+    (S.mg.fruitsUntil>Date.now()
+      ? '<div class="kv"><span>الوقت</span><b>'+Math.ceil((S.mg.fruitsUntil-Date.now())/1000)+' ث</b></div>'+
+        '<div class="kv"><span>صيدك</span><b>'+S.mg.fruitsScore+'</b></div>'+b("اصطادي!","fruitTap",null,"p bigbtn")
+      : '<div class="small">اضغطي بسرعة لصيد أكبر عدد من المكونات في 12 ثانية.</div>'+b("ابدأي الصيد","fruitStart",null,"p")+
+        '<div class="small">أفضل نتيجة: '+(S.mg.fruitsBest||0)+'</div>')
+  );
+  h += card("لعبة ترتيب الألوان والعلب",
+    '<div class="small">هسمعلك ترتيب 4 ألوان — كرريه بنفس الترتيب.</div>'+
+    b("ابدأي اللعبة","colorStart",null,"g")+
+    ((S.mg.seq||[]).length ? '<div class="grid2">'+
+      ['أحمر','أصفر','أزرق','أخضر'].map(function(c,i){ return '<button class="btn sm" onclick="act(\'colorPick\','+(i)+')">'+c+'</button>'; }).join("")+
+      '</div><div class="small">اختياراتك: '+(((S.mg.input||[]).map(function(i){return ['أحمر','أصفر','أزرق','أخضر'][i];})).join("، ")||"—")+'</div>' : '')
+  );
+  h += card("تحدي الذاكرة ونكهات العصائر",
+    '<div class="small">هسمعلك 3 نكهات — اختاريها بنفس الترتيب.</div>'+
+    b("ابدأي التحدي","juiceStart",null,"o")+
+    ((S.mg.juiceSeq||[]).length ? '<div class="grid3">'+
+      ['مانجو','فراولة','ليمون','نعناع','تفاح','برتقال'].map(function(c,i){ return '<button class="btn sm" onclick="act(\'juicePick\','+i+')">'+c+'</button>'; }).join("")+
+      '</div><div class="small">اختياراتك: '+(((S.mg.juiceInput||[]).map(function(i){return ['مانجو','فراولة','ليمون','نعناع','تفاح','برتقال'][i];})).join("، ")||"—")+'</div>' : '')
+  );
+  return h;
+};
+
+/* ===== 12. أزياء الشيف ===== */
+SCREENS.wardrobe = function(){
+  var h = head("أزياء وتصاميم الشيف");
+  h += card("خزانة ملابس الشيف", outfitList(OUTFITS,"outfit")+b("متجر القبعات والإكسسوارات","go","hats","o sm"));
+  h += card("مرآة العرض السريعة",
+    '<div class="small">إطلالتك الحالية: '+OUTFITS[S.girl.outfit]+' — '+HATS[S.girl.hat]+' — '+ACCS[S.girl.acc]+'</div>'+
+    b("شوفي نفسك في المرآة","mirror",null,"p sm")
+  );
+  return h;
+};
+function outfitList(arr,key){
+  var out = "";
+  for (var i=0;i<arr.length;i++){
+    var owned = (key==="outfit" ? S.girl.outfit===i : (key==="hat" ? S.girl.hat===i : S.girl.acc===i));
+    var cost = (i+1)*90;
+    out += '<div class="kv"><span>'+arr[i]+'</span>'+
+      (owned ? '<span class="tag g">مختار</span>' : '<button class="btn o sm" style="width:auto" onclick="act(\'wear\',\''+key+'\','+i+')">'+cost+'</button>')+'</div>';
+  }
+  return out;
+}
+SCREENS.hats = function(){
+  var h = head("القبعات والإكسسوارات");
+  h += card("قبعات الشيف", outfitList(HATS,"hat"));
+  h += card("إكسسوارات أنيقة", outfitList(ACCS,"acc"));
+  return h + b("رجوع للخزانة","go","wardrobe","p");
+};
+
+/* ===== 13. الكاميرا ===== */
+SCREENS.camera = function(){
+  var h = head("الكاميرا والألبوم");
+  var bgs = "";
+  for (var i=0;i<BGS.length;i++) bgs += '<button class="btn '+(S.photoBg===i?"p":"")+' sm" onclick="act(\'photoBg\','+i+')">'+BGS[i]+'</button>';
+  h += card("استوديو تصوير الوجبات", bgs + b("التقطي صورة للطبق","snap",null,"g bigbtn"));
+  h += card("ألبوم ذكريات المطعم",
+    '<div class="kv"><span>عدد الصور</span><b>'+S.photos.length+'</b></div>'+
+    (S.photos.length ? S.photos.slice(-3).reverse().map(function(p){ return '<div class="kv"><span>'+p.t+'</span><span class="small">'+p.bg+'</span></div>'; }).join("") : '<div class="small">لسه مفيش صور.</div>')+
+    b("مشاركة الصور","share",null,"o sm")
+  );
+  return h;
+};
+
+/* ===== 14. الموسيقى ===== */
+SCREENS.music = function(){
+  var h = head("الموسيقى والأصوات");
+  var tr = "";
+  for (var i=0;i<TRACKS.length;i++) tr += '<button class="btn '+(S.music.track===i?"p":"")+' sm" onclick="act(\'track\','+i+')">'+TRACKS[i]+'</button>';
+  h += card("مشغل الأغاني والألحان الهادئة", tr + '<div class="small">الأغنية المختارة: '+TRACKS[S.music.track]+'</div>'+
+    b(S.music.on?"إيقاف المؤقتة":"تشغيل المؤقتة","musicToggle",null,"g sm"));
+  var nt = "";
+  for (var k=0;k<NOTIFS.length;k++) nt += '<button class="btn '+(S.music.notify===k?"p":"")+' sm" onclick="act(\'notify\','+k+')">'+NOTIFS[k]+'</button>';
+  h += card("تخصيص أصوات التنبيهات", nt);
+  h += card("الوضع الهادئ للمطبخ",
+    '<div class="small">بيكتم الأصوات الصاخبة والموسيقى، ويسيب قارئ الشاشة والصوت الوصفي شغال.</div>'+
+    b(S.music.quiet?"الوضع الهادئ شغال — إلغاء":"تشغيل الوضع الهادئ","quiet",null,S.music.quiet?"d":"p sm")
+  );
+  return h;
+};
+
+/* ===== 15. أسرار الجدة ===== */
+SCREENS.secrets = function(){
+  var h = head("أسرار ووصفات الجدة");
+  h += card("صندوق الوصايا القديم",
+    '<div class="small">صندوق خشبي قديم فيه وصفة سرية من الجدة.</div>'+
+    (S.secrets.box ? '<span class="tag g">اتفتح — الوصفة معاك</span>' : b("افتحي الصندوق (100 عملة)","secretBox",null,"p sm"))
+  );
+  h += card("كتاب الأسرار المدفونة",
+    '<div class="small">كتاب بيزود جودة كل الأطباق للأبد.</div>'+
+    (S.secrets.book ? '<span class="tag g">مفتوح — جودة +10%</span>' : b("اشتري الكتاب (250 عملة)","secretBook",null,"o sm"))
+  );
+  h += card("جرعة السعادة",
+    '<div class="kv"><span>الجرعات عندك</span><b>'+S.secrets.potions+'</b></div>'+
+    b("اصنعي جرعة (قلب واحد)","secretPotion",null,"g sm")+
+    b("استخدمي جرعة لرفع معنويات الطاقم","usePotion",null,"p sm")
+  );
+  return h;
+};
+
+/* ===== 16. التوصيل ===== */
+SCREENS.delivery = function(){
+  var h = head("التوصيل السريع");
+  h += card("استقبال طلبات التوصيل",
+    '<div class="kv"><span>طلبات مستلمة</span><b>'+S.delivery.orders+'</b></div>'+
+    '<div class="kv"><span>حقائب مجهزة</span><b>'+S.delivery.packed+'</b></div>'+
+    b("استقبلي طلب توصيل","delOrder",null,"p sm")+
+    b("جهّزي حقيبة توصيل ورقية","delPack",null,"o sm")+
+    b("وصّلي الطلبات الجاهزة","delSend",null,"g sm")
+  );
+  var lvl = S.delivery.scooter;
+  h += card("ترقية سكوتر التوصيل",
+    '<div class="small">مستوى السكوتر '+lvl+' / 5 — كل ترقية بتزود سرعة وأرباح التوصيل.</div>'+
+    (lvl>=5 ? '<span class="tag g">أعلى مستوى</span>' : b("ترقية السكوتر ("+((lvl+1)*150)+" عملة)","delUp",null,"p sm"))
+  );
+  return h;
+};
+
+/* ===== 17. الهدايا ===== */
+SCREENS.gifts = function(){
+  var h = head("الهدايا والتذكارات");
+  h += card("صندوق الهدايا المفاجئة",
+    '<div class="small">هدية لزبونة عشوائية — ميدالية أو قلادة، وبترجعلك حب ونجوم.</div>'+
+    b("اهدِ زبونة هدية (70 عملة)","giftGuest",null,"p sm")+
+    '<div class="kv"><span>هدايا اتقدمت</span><b>'+S.gifts.given+'</b></div>'
+  );
+  h += card("ركن بيع التذكارات",
+    '<div class="kv"><span>تذكارات مباعة</span><b>'+S.gifts.souvenirs+'</b></div>'+
+    b("صنّعي وبيعي تذكار (40 عملة)","souvenir",null,"o sm")
+  );
+  h += card("نقاط الحب والامتنان",
+    '<div class="kv"><span>نقاطك</span><b>'+S.gifts.loved+'</b></div>'+
+    '<div class="small">10 نقاط حب = ديكور حصري.</div>'+
+    b("استبدلي بديكور حصري","loveDeco",null,"g sm")
+  );
+  return h;
+};
+
+/* ===== 18. الإعدادات ===== */
+SCREENS.settings = function(){
+  var h = head("الإعدادات وإمكانية الوصول");
+  h += card("قارئ الشاشة والتوافق",
+    '<div class="small">التطبيق متوافق مع قارئات الشاشة. كل زر ليه اسم واضح.</div>'+
+    b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")+
+    b(S.autoRead?"إيقاف القراءة التلقائية":"تشغيل القراءة التلقائية","autoRead",null,"o sm")
+  );
+  h += card("لغة الحوار السهل",
+    '<div class="small">تبسيط النصوص والكلام للوصف السريع.</div>'+
+    b(S.simple?"الوضع العادي":"لغة عربية مبسطة","simple",null,"g sm")+
+    b(S.bigText?"حجم خط عادي":"خط كبير","bigText",null,"o sm")
+  );
+  h += card("الصوت",
+    b(S.muted?"تشغيل الصوت":"كتم الصوت","mute",null,"sm")+
+    b("الوضع الهادئ","go","music","sm")
+  );
+  h += card("الدعم الفني والمجتمع",
+    '<div class="small">قناة اللعبة على التليجرام للدعم والأسئلة.</div>'+
+    '<a class="btn p" href="https://t.me/BlindTechExplain" target="_blank">افتحي قناة الدعم</a>'
+  );
+  h += card("إعادة اللعبة من الأول",
+    '<div class="small">ده هيمسح كل تقدمك. مش هيتعمل غير لما تأكدي.</div>'+
+    b("تصفير كل التقدم","resetAsk",null,"d sm")
+  );
+  return h;
+};
+
+/* ===== 19. الحديقة ===== */
+SCREENS.garden = function(){
+  var h = head("الحديقة الزراعية");
+  h += card("صوبة الخضار العضوية",
+    gardenRow("tomatoAt","طماطم",12)+
+    b("احصدي الطماطم","harvest","tomato","g sm")
+  );
+  h += card("حديقة الأعشاب العطرية",
+    gardenRow("herbAt","أعشاب (نعناع وبقدونس وكزبرة)",10)+
+    b("احصدي الأعشاب","harvest","herb","g sm")
+  );
+  h += card("بئر الماء والري التلقائي",
+    '<div class="small">'+(S.garden.watered?"الري شغال — الحصاد أسرع":"الري مقفول")+'</div>'+
+    b(S.garden.watered?"إيقاف الري":"تشغيل الري التلقائي","water",null,S.garden.watered?"d":"p sm")
+  );
+  return h;
+};
+function gardenRow(key,label,cost){
+  var at = S.garden[key];
+  var left = at ? Math.max(0, 45 - Math.floor((Date.now()-at)/1000)) : 0;
+  return '<div class="kv"><span>'+label+'</span><b>'+(at ? (left>0 ? "بتنمو — باقي "+left+" ث" : "جاهزة للحصاد") : "مش مزروعة")+'</b></div>'+
+    (at ? '' : '<button class="btn o sm" onclick="act(\'plant\',\''+key+'\')">ازرعي ('+cost+' عملة)</button>');
+}
+
+/* ===== 20. إعادة التدوير ===== */
+SCREENS.recycle = function(){
+  var h = head("ورشة إعادة التدوير");
+  h += card("المخزون",
+    '<div class="kv"><span>خامات</span><b>'+S.recycleMat+'</b></div>'+
+    '<div class="kv"><span>ديكور يدوي</span><b>'+S.recycle.decor+'</b></div>'+
+    '<div class="kv"><span>أواني زهور</span><b>'+S.recycle.vases+'</b></div>'+
+    '<div class="kv"><span>شموع معطرة</span><b>'+S.recycle.candles+'</b></div>'
+  );
+  h += card("طاولة تصنيع الديكور اليدوي", b("اصنعي ديكور من الخامات","craft","decor","p sm"));
+  h += card("إعادة تدوير الزجاجات البلاستيكية", b("حوّلي الزجاجات لأواني زهور","craft","vase","g sm"));
+  h += card("صناعة الشموع المعطرة", b("اصنعي شمعة معطرة","craft","candle","o sm"));
+  return h;
+};
+
+/* ===== 21. أزياء النادلين ===== */
+SCREENS.staffstyle = function(){
+  var h = head("أزياء وتصاميم النادلين");
+  h += card("متجر ملابس النادلين",
+    '<div class="kv"><span>الزي الموحد</span><b>مستوى '+S.uniforms+'</b></div>'+
+    b("اشتري زي موحد جديد (120 عملة)","uniform",null,"p sm")
+  );
+  h += card("بطاقات التعريف (البيودج)",
+    '<div class="kv"><span>بطاقات جاهزة</span><b>'+S.badges+'</b></div>'+
+    b("اطلبي بطاقة تعريف (50 عملة)","badge",null,"o sm")
+  );
+  h += card("حفل تكريم الموظف المثالي",
+    '<div class="small">'+(S.employeeOfMonth ? "الموظف المثالي: "+S.employeeOfMonth : "اختاري الموظف المثالي الشهر ده")+'</div>'+
+    b("كرّمي نادلة","employee","نادلة","g sm")+
+    b("كرّمي مساعد الشيف","employee","مساعد الشيف","g sm")+
+    b("كرّمي عاملة النظافة","employee","عاملة النظافة","g sm")
+  );
+  return h;
+};
+
+/* ===== 22. اللعب الجماعي ===== */
+SCREENS.online = function(){
+  var h = head("ألعاب الحفلات الجماعية");
+  h += card("استضافة حفلة مطبخ جماعية",
+    '<div class="small">حفلة أونلاين مع صديقاتك — كل واحدة تطبخ طبق.</div>'+
+    cdBtn("استضيفي حفلة (150 عملة)","online","party","o_party",1800000,"p sm")
+  );
+  h += card("تحدي الطهي الجماعي التنافسي",
+    '<div class="small">تنافسي على كأس ذهبية. النتيجة بتظهر فوراً.</div>'+
+    cdBtn("ادخلي التحدي","online","cup","o_cup",900000,"g sm")+
+    '<div class="kv"><span>مرات الفوز</span><b>'+S.online.wins+'</b></div>'
+  );
+  h += card("تبادل الهدايا والوصفات",
+    b("بادلي وصفة مع صديقة","onlineGift",null,"o sm")+
+    '<div class="kv"><span>حفلات مستضافة</span><b>'+S.online.hosted+'</b></div>'
+  );
+  return h;
+};
+
+/* ===== 23. المشروبات ===== */
+SCREENS.drinks = function(){
+  var h = head("محطة المشروبات");
+  if (!S.power) h += '<div class="hint">شغّلي الكهرباء الأول.</div>';
+  h += card("ماكينة الإسبريسو",
+    '<div class="small">لاتيه، كابتشينو، موكا.</div>'+
+    b("حضّري لاتيه (8 عملات)","makeDrink","latte","p sm")+
+    b("حضّري كابتشينو (8 عملات)","makeDrink","cappuccino","p sm")+
+    b("حضّري موكا (10 عملات)","makeDrink","mocha","p sm")
+  );
+  h += card("خلاط الفواكه والعصائر المثلجة",
+    b("حضّري عصير فواكه (8 عملات)","makeDrink","juice","g sm")
+  );
+  h += card("بار الشاي والمشروبات العشبية",
+    b("حضّري شاي بنعناع (6 عملات)","makeDrink","tea","o sm")
+  );
+  h += card("المشروبات الجاهزة", 
+    (S.readyDrinks.length ? S.readyDrinks.map(function(d){ return '<span class="tag g">'+drinkLabel(d)+'</span>'; }).join("") : '<div class="small">لسه مفيش مشروبات جاهزة.</div>')
+  );
+  return h;
+};
+function drinkLabel(id){
+  var map = {latte:"لاتيه",cappuccino:"كابتشينو",mocha:"موكا",juice:"عصير فواكه",tea:"شاي بنعناع"};
+  return map[id]||id;
+}
+
+/* ===== 24. المكافآت ===== */
+SCREENS.rewards = function(){
+  var h = head("المكافآت اليومية");
+  h += card("صندوق الهدايا اليومي",
+    S.day.gift ? '<span class="tag g">استلمتيه النهارده — تعالي بكرة</span>' : b("افتحي صندوق النهارده","dailyGift",null,"p bigbtn")
+  );
+  h += card("عجلة الحظ الكبرى",
+    S.day.wheel ? '<span class="tag g">لفّيتيها النهارده</span>' : b("لفّي العجلة","wheel",null,"g bigbtn")
+  );
+  var wk = S.week;
+  h += card("مهام الأسبوع الكبرى",
+    '<div class="small">اخدمي 15 زبونة هذا الأسبوع للحصول على وسام الشيف الذهبي الملكي.</div>'+
+    bar((Math.min(15,wk.serve)/15)*100,"g")+
+    '<div class="kv"><span>التقدم</span><b>'+Math.min(15,wk.serve)+' / 15</b></div>'+
+    (wk.claimed ? '<span class="tag g">اتسلم الوسام</span>' : (wk.serve>=15 ? b("استلمي الوسام الملكي","weekClaim",null,"p") : '<div class="small">لسه محتاجة خدمة أكتر.</div>'))
+  );
+  h += card("تحديات اليوم",
+    dailyRow("cook","حضّري 3 أطباق اليوم",S.day.cook,3)+
+    dailyRow("serve","اخدمي 3 زبائن اليوم",S.day.serve,3)
+  );
+  return h;
+};
+function dailyRow(id,label,val,need){
+  var done = S.day.claims.indexOf(id)>=0;
+  return '<div class="kv"><span>'+label+'</span><b>'+Math.min(val,need)+' / '+need+'</b></div>'+
+    (done ? '<span class="tag g">اتسلمت</span>' :
+      (val>=need ? '<button class="btn p sm" onclick="act(\'claimDaily\',\''+id+'\')">استلمي المكافأة</button>' : bar((val/need)*100)));
+}
+
+/* ===== 25. معمل النكهات ===== */
+SCREENS.flavors = function(){
+  var h = head("معمل الأطعمة الغريبة");
+  h += card("معمل دمج النكهات العجيبة",
+    '<div class="small">ادمجي نكهتين عشوائيتين واعملي تجربة مجنونة.</div>'+
+    b("دمجي نكهات (25 عملة)","flavor",null,"p sm")
+  );
+  h += card("ماكينة النكهات السحرية",
+    '<div class="small">بتخلي الطبق الجاي مميز ونجومه أعلى.</div>'+
+    (S.magic ? '<span class="tag g">النكهة السحرية جاهزة للطبق الجاي</span>' : b("شغّلي الماكينة (50 عملة)","magicOn",null,"o sm"))
+  );
+  h += card("سجل وصفات التجارب المجنونة",
+    (S.experiments.length ? S.experiments.slice(-8).reverse().map(function(e){ return '<div class="kv"><span>'+e.n+'</span><span class="small">'+e.d+'</span></div>'; }).join("") : '<div class="small">لسه مفيش تجارب.</div>')
+  );
+  return h;
+};
+
+/* ===== 26. الروبوت ===== */
+SCREENS.robot = function(){
+  var r = S.robot;
+  var h = head("الروبوت المساعد");
+  h += card("تفعيل الروبوت المساعد",
+    '<div class="small">روبوت بيساعد في غسل الأطباق وتنظيم المطبخ.</div>'+
+    '<div class="kv"><span>الحالة</span><b>'+(r.on?"شغال":"متوقف")+'</b></div>'+
+    b(r.on?"إيقاف الروبوت":"تفعيل الروبوت (300 عملة)","robotToggle",null,r.on?"d":"p sm")
+  );
+  h += card("ترقية بطارية الروبوت",
+    '<div class="kv"><span>البطارية</span><b>'+r.bat+' / 5</b></div>'+
+    bar((r.bat/5)*100,"g")+
+    (r.bat>=5 ? '<span class="tag g">أعلى مستوى</span>' : b("ترقية البطارية ("+((r.bat+1)*80)+" عملة)","robotBat",null,"o sm"))
+  );
+  h += card("تخصيص شكل وشخصية الروبوت",
+    '<div class="small">الشكل الحالي: '+["فضي كلاسيك","وردي لطيف","ذهبي فاخر","أزرق ذكي"][r.color]+'</div>'+
+    b("غيّري الشكل (40 عملة)","robotColor",null,"p sm")
+  );
+  return h;
+};
+
+/* ===== 27. الطقس ===== */
+SCREENS.weather = function(){
+  var h = head("الطقس وتأثيره على الطلبات");
+  var w = S.weather;
+  var note = w==="مطر" ? "مطر غزير — الزبائن بيطلبوا شوربة ومشروبات ساخنة، والتوصيل بيقى مطلوب جداً." :
+             w==="ثلج" ? "ثلوج — الطلبات الساخنة بترتفع والتوصيل صعب، وجهّزي المدخل." :
+             w==="غائم" ? "غائم — جو هادي وطلبات متوسطة." : "شمس مشمسة — عصائر ومثلجات ومشروبات باردة.";
+  h += card("شاشة مراقبة الطقس اليومي",
+    '<div style="font-size:26px;font-weight:900">'+w+'</div><div class="small">'+note+'</div>'+
+    '<div class="small">التوصيل النهارده: '+(w==="مطر"||w==="ثلج"?"طلبات أكتر — استخدمي المظلات":"عادي")+'</div>'
+  );
+  h += card("ركن المشروبات الشتوية",
+    '<div class="kv"><span>الركن</span><b>'+(S.winter?"مفتوح":"مقفول")+'</b></div>'+
+    b(S.winter?"اقفلي الركن":"افتحي ركن المشروبات الساخنة (120 عملة)","winter",null,S.winter?"d":"p sm")
+  );
+  h += card("تجهيز المظلات الخارجية",
+    '<div class="kv"><span>المظلات</span><b>'+(S.umbrellas?"مجهزة":"مش مجهزة")+'</b></div>'+
+    b(S.umbrellas?"إلغاء التجهيز":"جهّزي المظلات (90 عملة)","umbrella",null,S.umbrellas?"d":"o sm")
+  );
+  return h;
+};
+
+/* ===== 28. الإحصائيات ===== */
+SCREENS.stats = function(){
+  var h = head("السجل الشخصي والإحصائيات");
+  h += card("لوحة الإحصائيات الشاملة",
+    '<div class="kv"><span>أطباق تم تحضيرها</span><b>'+S.dishesMade+'</b></div>'+
+    '<div class="kv"><span>زبائن تمت خدمتهم</span><b>'+S.served+'</b></div>'+
+    '<div class="kv"><span>إجمالي الأرباح</span><b>'+ICON.coin+' '+fmtNum(S.totalEarned)+'</b></div>'+
+    '<div class="kv"><span>الفروع</span><b>'+S.branches.length+'</b></div>'+
+    '<div class="kv"><span>المستوى</span><b>'+S.level+'</b></div>'+
+    '<div class="kv"><span>تقييم المطعم</span><b>'+S.rating.toFixed(1)+' / 5</b></div>'
+  );
+  h += card("وسام الأداء المتميز",
+    '<div class="small">نظافة، سرعة، حمامات — كل ما تحسني، الوسام بيرتفع.</div>'+
+    bar(Math.min(100,(S.rating/5)*100),"g")+
+    b("استلمي وسام الأداء","badgeAward",null,"p sm")
+  );
+  h += card("تقرير رضا العملاء الشهري",
+    '<div class="small">متوسط التقييم '+S.rating.toFixed(1)+' من 5 — '+(S.reviews.length)+' رأي مسجل.</div>'+
+    b("اقرئي التقرير الكامل","report",null,"o sm")
+  );
+  h += card("الأوسمة والإنجازات",
+    ACH.map(function(a){ return '<div class="kv"><span>'+a.n+'<div class="small">'+a.d+'</div></span>'+(S.ach.indexOf(a.id)>=0?'<span class="tag g">✓</span>':'<span class="tag">'+a.s+' ⭐</span>')+'</div>'; }).join("")
+  );
+  return h;
+};
+
+/* ===== المحرك: كل الأزرار ===== */
+function fin(){ save(); checkAch(); render(); }
+function earn(n){ S.pending += Math.max(0, Math.round(n)); }
+function bumpRating(d){ S.rating = Math.max(1, Math.min(5, Math.round((S.rating + d)*100)/100)); }
+function num(x){ var n = Number(x); return isFinite(n) ? n : 0; }
+
+function makeGuest(vip){
+  return {
+    name: pick(NAMES),
+    food: pick(DISHES).id,
+    drink: pick(DRINKS).id,
+    at: Date.now(),
+    vip: !!vip
+  };
+}
+function guestReward(g){
+  var p = patLeft(g)/100;
+  var base = dishBase(g.food) + 8;
+  var tip = Math.round(base * (0.6 + p*0.8) * (g.vip?2:1));
+  return tip;
+}
+
+function act(a, arg, arg2){
+  var n = num(arg);
+  switch(a){
+
+  /* التنقل */
+  case "back": back(); return;
+  case "go": if (arg) go(String(arg)); return;
+  case "photoBg": S.photoBg = n; fin(); return;
+
+  /* 1. المطبخ */
+  case "tray":
+    if (!(S.stock[arg] > 0)){ toast("مفيش " + ING[arg] + " في المخزن"); return; }
+    var ti = S.tray.indexOf(arg);
+    if (ti >= 0){ S.tray.splice(ti,1); }
+    else {
+      if (S.tray.length >= 3){ toast("الصينية بتاخد 3 مكونات بس"); return; }
+      S.tray.push(arg);
+    }
+    save(); render(); return;
+
+  case "trayClear": S.tray = []; fin(); return;
+
+  case "trayGuess":
+    if (S.tray.length !== 3){ toast("اختاري 3 مكونات الأول"); return; }
+    var match = null;
+    for (var i=0;i<DISHES.length;i++){
+      var okAll = true;
+      for (var k=0;k<DISHES[i].ing.length;k++){
+        if (S.tray.indexOf(DISHES[i].ing[k]) < 0){ okAll = false; break; }
+      }
+      if (okAll && DISHES[i].ing.length === S.tray.length){ match = DISHES[i]; break; }
+    }
+    if (match){
+      toast("دي وصفة " + match.n + " — تقدر تطبخها من القائمة");
+      say("المكونات دي بتعمل " + match.n);
+    } else {
+      toast("مكونات جديدة! سمّي الطبق من مربع الابتكار");
+      say("دي وصفة جديدة. اكتبي اسمها وسعرها");
+    }
+    save(); render(); return;
+
+  case "nameDish":
+    if (S.tray.length !== 3){ toast("الصينية محتاجة 3 مكونات"); return; }
+    var elN = document.getElementById("dname");
+    var elP = document.getElementById("dprice");
+    var nm = elN ? elN.value.replace(/^\s+|\s+$/g,"") : "";
+    var pr = elP ? num(elP.value) : 0;
+    if (nm.length < 2){ toast("اكتبي اسم للطبق"); return; }
+    if (pr < 5){ toast("حددي سعر 5 عملات على الأقل"); return; }
+    var exists = false;
+    for (var q=0;q<S.recipes.length;q++) if (S.recipes[q].n === nm) exists = true;
+    if (exists){ toast("فيه وصفة بنفس الاسم"); return; }
+    S.recipes.push({ id:"r"+Date.now(), n:nm, ing:S.tray.slice(), base:Math.round(pr) });
+    S.tray = []; give("xp",10);
+    toast("الوصفة اتضافت للقائمة: " + nm);
+    fin(); return;
+
+  case "cookStart":
+    var d = dishById(String(arg));
+    if (!d){ toast("وصفة غير معروفة"); return; }
+    if (!requirePower()) return;
+    if (!hasIng(d.ing)){ toast("مكونات ناقصة — اشتري من المتجر"); return; }
+    useIng(d.ing);
+    S.cook = { id:d.id, n:d.n, ing:d.ing.slice(), cut:0, done:0, temp:180, garn:[], burnt:false };
+    go("cut"); return;
+
+  case "cookCut":
+    if (!S.cook){ toast("مفيش طبق"); return; }
+    if (S.cook.cut >= 3){ toast("التقطيع خلص"); return; }
+    S.cook.cut++;
+    sfx("click");
+    if (S.cook.cut >= 3) say("التقطيع خلص. تقدري تروحي للطهي");
+    fin(); return;
+
+  case "cookToStove":
+    if (!S.cook) return;
+    if (S.cook.cut < 3){ toast("لسه محتاج تقطيع"); return; }
+    go("stove"); return;
+
+  case "setTemp":
+    if (!S.cook) return;
+    S.cook.temp = n;
+    save(); render();
+    say("درجة الحرارة " + n + " درجة");
+    return;
+
+  case "cookProgress":
+    if (!S.cook) return;
+    if (!requirePower()) return;
+    var c = S.cook;
+    var temp = c.temp || 180;
+    var inc;
+    if (temp === 160) inc = rnd(12,18);
+    else if (temp === 180) inc = rnd(20,28);
+    else if (temp === 200) inc = rnd(26,34);
+    else inc = rnd(34,44);
+    c.done = Math.min(110, c.done + inc);
+    if (temp === 220 && Math.random() < 0.32) c.burnt = true;
+    if (temp === 200 && Math.random() < 0.1) c.burnt = true;
+    if (c.done >= 100){ c.done = 100; c.burnt = c.burnt || temp >= 220; }
+    if (c.burnt) say("خدي بالك! الطبق بدأ يتحرق");
+    else if (c.done >= 50) say("الطبق استوى. تقدري ترفعيه");
+    else say("لسه بيستوي");
+    fin(); return;
+
+  case "cookToDeco":
+    if (!S.cook) return;
+    if (S.cook.done < 50){ toast("لسه محتاج نضج أكتر"); return; }
+    go("deco"); return;
+
+  case "garnish":
+    if (!S.cook) return;
+    var gi = S.cook.garn.indexOf(n);
+    if (gi >= 0) S.cook.garn.splice(gi,1);
+    else {
+      if (S.cook.garn.length >= 3){ toast("3 لمسات تكفي"); return; }
+      S.cook.garn.push(n);
+    }
+    save(); render(); return;
+
+  case "cookRate":
+    if (!S.cook){ toast("مفيش طبق"); return; }
+    var cc = S.cook;
+    var score = 38 + Math.min(3, cc.cut) * 8;
+    score += Math.min(100, cc.done) * 0.18;
+    score += cc.garn.length * 6;
+    if (cc.burnt) score -= 28;
+    if (cc.temp === 180) score += 6;
+    if (S.spices > 0){ S.spices--; score += 6; }
+    if (S.secrets.book) score += 5;
+    var facAvg = 0, facCnt = 0;
+    for (var fk in S.fac){ facAvg += S.fac[fk]; facCnt++; }
+    if (facCnt) score += (facAvg/facCnt) * 1.6;
+    score += (S.tools.knife + S.tools.pan + S.tools.mixer) * 1.5;
+    if (S.magic){ score += 10; S.magic = false; }
+    score = Math.max(5, Math.min(100, Math.round(score)));
+    var stars = Math.max(1, Math.min(5, Math.round(score/20)));
+    var coin = Math.round(dishBase(cc.id) * (0.7 + score/140));
+    var rstar = score >= 90 ? 2 : (score >= 70 ? 1 : 0);
+    var xp = 8 + Math.round(score/12);
+    var heart = score >= 85 ? 1 : 0;
+    var note = cc.burnt ? "الطبق اتحرق شوية — خففي الحرارة المرة الجاية" :
+               score >= 85 ? "طبق مثالي! ريحة المطبخ حلوة" :
+               score >= 65 ? "طبق حلو ومرتب" : "طبق بسيط ومحتاج شغل أكتر";
+    S.lastRate = { n:cc.n, score:score, stars:stars, note:note, coin:coin, star:rstar, xp:xp, heart:heart };
+    earn(coin);
+    if (rstar) S.star += rstar;
+    if (heart) give("heart", heart);
+    give("xp", xp);
+    S.ready.push({ n:cc.n, id:cc.id, stars:stars, score:score });
+    S.dishesMade++;
+    S.dirty++;
+    S.day.cook++;
+    bumpRating((stars - 3) * 0.12);
+    S.cook = null;
+    toast("الطبق جاهز: " + score + " من 100");
+    fin(); go("rate", true); return;
+
+  /* 2. المخزن والكهرباء */
+  case "breaker":
+    if (S.breakers[arg] === undefined){ toast("قاطع غير معروف"); return; }
+    S.breakers[arg] = !S.breakers[arg];
+    var p1 = S.breakers.main && S.breakers.kitchen && S.breakers.hall;
+    S.power = p1;
+    sfx(S.breakers[arg] ? "click" : "error");
+    toast(p1 ? "الكهرباء شغالة في كل المطعم" : (S.breakers[arg] ? "قاطع " + arg + " اتفتح — باقي القواطع" : "قاطع " + arg + " اتقفل"));
+    fin(); return;
+
+  case "buyFresh":
+    if (!spend(30)) return;
+    S.stock.tomato+=2; S.stock.cucumber+=2; S.stock.milk+=2; S.stock.fruit+=2; S.stock.herb+=1;
+    toast("وصلت المؤن الطازجة للثلاجة"); fin(); return;
+
+  case "buyMeat":
+    if (!spend(35)) return;
+    S.stock.meat+=3; toast("وصل اللحم المجمد للفريزر"); fin(); return;
+
+  case "buySpice":
+    if (!spend(25)) return;
+    S.spices++; toast("بهارات جديدة على الرف"); fin(); return;
+
+  case "wash":
+    if (S.dirty <= 0){ toast("مفيش أطباق متسخة"); return; }
+    var costW = S.fac.dishwasher > 0 ? 0 : Math.min(S.dirty, 5) * 2;
+    if (costW && !spend(costW)) return;
+    S.dirty = S.fac.dishwasher > 0 ? 0 : Math.max(0, S.dirty - 5);
+    S.washes++;
+    give("xp",5);
+    bumpRating(0.05);
+    toast(S.fac.dishwasher > 0 ? "غسالة الصحون خلصت كل حاجة" : "الأطباق اتنضفت");
+    fin(); return;
+
+  case "buyMissing":
+    var need = {};
+    var dd = dayDishes();
+    for (var i2=0;i2<dd.length;i2++) for (var k2=0;k2<dd[i2].ing.length;k2++){
+      var kk = dd[i2].ing[k2]; need[kk] = (need[kk]||0) + 1;
+    }
+    var costM = 0, units = 0;
+    for (var kk2 in need){ var lack = need[kk2] - (S.stock[kk2]||0); if (lack > 0){ units += lack; costM += lack*12; } }
+    if (units === 0){ toast("كل مكونات اليوم موجودة"); return; }
+    if (!spend(costM)) return;
+    for (var kk3 in need){ var l3 = need[kk3] - (S.stock[kk3]||0); if (l3 > 0) S.stock[kk3] = (S.stock[kk3]||0) + l3; }
+    toast("اشتريت الناقص — " + units + " مكون"); fin(); return;
+
+  case "trash":
+    var got = rnd(1,3);
+    S.recycleMat += got;
+    toast("جمعتي " + got + " خامات لإعادة التدوير");
+    fin(); return;
+
+  case "buyIng":
+    var prices = {tomato:12,cucumber:10,meat:22,flour:9,sugar:8,choco:16,milk:10,herb:9,fruit:14};
+    var prc = prices[arg];
+    if (!prc){ toast("مكون غير معروف"); return; }
+    if (!spend(prc)) return;
+    S.stock[arg] = (S.stock[arg]||0) + 1;
+    sfx("buy");
+    toast("اشتريت " + ING[arg]);
+    fin(); return;
+
+  /* 3. الديكور */
+  case "upDeco":
+    var dCost = {bath:120,chairs:90,tableDeco:80,furniture:150,light:70,corner:110};
+    var dl = S.deco[arg];
+    if (dl === undefined){ toast("ديكور غير معروف"); return; }
+    if (dl >= 5){ toast("وصلتي لأعلى مستوى هنا"); return; }
+    if (!spend(dCost[arg])) return;
+    S.deco[arg]++;
+    bumpRating(0.08);
+    give("xp",6);
+    toast("الديكور اتطور — المستوى " + S.deco[arg]);
+    fin(); return;
+
+  case "upFac":
+    var fCost = {microwave:140,oven:160,fryer:150,dishwasher:180,espresso:120,blender:100,tea:90};
+    var fl = S.fac[arg];
+    if (fl === undefined){ toast("جهاز غير معروف"); return; }
+    if (fl >= 5){ toast("الجهاز في أعلى مستوى"); return; }
+    if (!spend((fl+1)*fCost[arg])) return;
+    S.fac[arg]++;
+    give("xp",8);
+    toast("الجهاز اتطور — المستوى " + S.fac[arg]);
+    fin(); return;
+
+  case "upTool":
+    var tCost = {knife:90,pan:110,mixer:130};
+    var tl = S.tools[arg];
+    if (tl === undefined){ toast("أداة غير معروفة"); return; }
+    if (tl >= 5){ toast("الأداة في أعلى مستوى"); return; }
+    if (!spend((tl+1)*tCost[arg])) return;
+    S.tools[arg]++;
+    give("xp",7);
+    toast("الأداة اتطورت — مستوى " + S.tools[arg]);
+    fin(); return;
+
+  case "upMarble":
+    if (S.marble >= 5){ toast("الرخامة في أعلى حجم"); return; }
+    if (!spend(200*(S.marble+1))) return;
+    S.marble++;
+    bumpRating(0.05);
+    give("xp",10);
+    toast("الرخامة كبرت — مساحة تحضير أوسع");
+    fin(); return;
+
+  /* 4. الطاولات */
+  case "arrive":
+    var free = -1;
+    for (var t=0;t<S.tables.length;t++) if (!S.tables[t]){ free = t; break; }
+    if (free < 0){ toast("كل الطاولات مشغولة"); return; }
+    S.tables[free] = makeGuest(S.vipMode);
+    S.vipMode = false;
+    sfx("bell");
+    say("وصلت زبونة على طاولة " + (free+1));
+    fin(); return;
+
+  case "vipNext":
+    S.vipMode = !S.vipMode;
+    toast(S.vipMode ? "الزبونة الجاية VIP — مكافآت مضاعفة" : "تم إلغاء وضع VIP");
+    fin(); return;
+
+  case "callStaff":
+    if (S.staff.waiter <= 0){ toast("مفيش نادلة. وظّفي واحدة من القسم"); return; }
+    if (cdLeft("staff", 20000) > 0){ toast("النادلة مشغولة — انتظري " + cdLeft("staff",20000) + " ث"); return; }
+    cdStart("staff");
+    var servedOne = false;
+    for (var t2=0;t2<S.tables.length;t2++){
+      var g2 = S.tables[t2];
+      if (!g2) continue;
+      var ix = -1;
+      for (var r2=0;r2<S.ready.length;r2++) if (S.ready[r2].id === g2.food){ ix = r2; break; }
+      var di = S.readyDrinks.indexOf(g2.drink);
+      if (ix >= 0 && di >= 0){
+        S.ready.splice(ix,1); S.readyDrinks.splice(di,1);
+        var rw = guestReward(g2);
+        earn(rw); S.served++; S.day.serve++; S.week.serve++;
+        bumpRating(0.06);
+        S.tables[t2] = null;
+        servedOne = true;
+        toast("النادلة خدمت طاولة " + (t2+1) + " — +" + rw + " في الكاشير");
+        break;
+      }
+    }
+    if (!servedOne) toast("مفيش طلب جاهز النادلة تقدمه");
+    fin(); return;
+
+  case "serve":
+    var gs = S.tables[n];
+    if (!gs){ toast("الطاولة فاضية"); return; }
+    var ridx = -1;
+    for (var r3=0;r3<S.ready.length;r3++) if (S.ready[r3].id === gs.food){ ridx = r3; break; }
+    if (ridx < 0){ toast("محتاجة تطبخي " + dishName(gs.food) + " الأول"); return; }
+    var didx = S.readyDrinks.indexOf(gs.drink);
+    if (didx < 0){ toast("محتاجة تحضري " + drinkName(gs.drink)); return; }
+    var dishRec = S.ready.splice(ridx,1)[0];
+    S.readyDrinks.splice(didx,1);
+    var money = guestReward(gs) + Math.round(dishRec.score/10);
+    earn(money);
+    S.served++; S.day.serve++; S.week.serve++;
+    bumpRating(0.1 + (gs.vip?0.1:0));
+    if (gs.vip){ give("heart",1); S.star += 1; }
+    S.dirty++;
+    var review = { n:gs.name, s:Math.max(1, Math.min(5, Math.round(S.rating))), t: (S.rating>=3.5?pick(COMMENTS_GOOD):pick(COMMENTS_BAD)) };
+    S.reviews.unshift(review);
+    if (S.reviews.length > 30) S.reviews.pop();
+    S.tables[n] = null;
+    give("xp",8);
+    toast("تمت الخدمة — " + money + " عملة في الكاشير");
+    fin(); return;
+
+  case "kick":
+    var gk = S.tables[n];
+    if (!gk){ toast("الطاولة فاضية"); return; }
+    S.tables[n] = null;
+    bumpRating(-0.15);
+    toast("الزبونة اتطردت — التقييم نزل");
+    fin(); return;
+
+  /* 5. التحديات */
+  case "speedStart":
+    S.mg.speedUntil = Date.now() + 30000;
+    S.mg.speedScore = 0;
+    say("يلا! اضغطي بسرعة أكتر ما تقدري");
+    fin(); return;
+
+  case "speedTap":
+    if (!S.mg.speedUntil){ toast("ابدأي التحدي الأول"); return; }
+    if (Date.now() > S.mg.speedUntil || S.mg.speedScore >= 20){
+      var sc = S.mg.speedScore || 0;
+      if (sc > (S.mg.speedBest||0)) S.mg.speedBest = sc;
+      var rwd = sc >= 15 ? 2 : 1;
+      S.star += rwd;
+      earn(sc*4);
+      S.mg.speedUntil = 0; S.mg.speedScore = 0;
+      toast("خلص التحدي — " + sc + " ضغطة، +" + rwd + " نجمة");
+      fin(); return;
+    }
+    S.mg.speedScore++;
+    sfx("click");
+    if (S.mg.speedScore >= 20){
+      var sc2 = S.mg.speedScore;
+      if (sc2 > (S.mg.speedBest||0)) S.mg.speedBest = sc2;
+      var rwd2 = 2;
+      S.star += rwd2;
+      earn(sc2*4);
+      S.mg.speedUntil = 0; S.mg.speedScore = 0;
+      toast("ممتاز! " + sc2 + " ضغطة — +" + rwd2 + " نجمة");
+    }
+    fin(); return;
+
+  case "cakePick":
+    var ci = S.cakePicks.indexOf(n);
+    if (ci >= 0) S.cakePicks.splice(ci,1);
+    else {
+      if (S.cakePicks.length >= 3){ toast("3 لمسات بس"); return; }
+      S.cakePicks.push(n);
+    }
+    save(); render(); return;
+
+  case "cakeSubmit":
+    if (S.cakePicks.length !== 3){ toast("اختاري 3 لمسات للكيكة"); return; }
+    var ratingCake = rnd(3,5);
+    S.star += ratingCake >= 5 ? 2 : 1;
+    earn(40 + ratingCake*10);
+    bumpRating(0.05);
+    S.cakePicks = [];
+    toast("الكيكة عجبت اللجنة — " + ratingCake + " نجوم");
+    fin(); return;
+
+  case "groupCook":
+    if (cdLeft("groupCook", 600000) > 0){ toast("الساحة مشغولة — انتظري " + cdLeft("groupCook",600000) + " ث"); return; }
+    cdStart("groupCook");
+    if (Math.random() < 0.55){
+      S.star += 2; earn(90); bumpRating(0.08);
+      toast("فزتي في ساحة الطبخ! +2 نجمة و+90 في الكاشير");
+    } else {
+      earn(25);
+      toast("خسرتي بفارق بسيط — لكن اتعلمتي حاجة جديدة");
+    }
+    fin(); return;
+
+  case "storyClaim":
+    if (n !== S.story){ toast("الفصل ده مش جاهز"); return; }
+    if (n >= STORY.length){ toast("خلصت القصة كلها"); return; }
+    var chap = STORY[n];
+    var readyCh = false;
+    try{ readyCh = chap.need(); }catch(e){}
+    if (!readyCh){ toast("لسه مش قادرة تستلمي المكافأة"); return; }
+    if (chap.rw.coin) give("coin", chap.rw.coin);
+    if (chap.rw.heart) give("heart", chap.rw.heart);
+    if (chap.rw.star) S.star += chap.rw.star;
+    S.story = n + 1;
+    toast("الفصل اتفتح — المكافأة وصلت");
+    fin(); return;
+
+  case "cashier":
+    if (S.pending <= 0){ toast("مفيش أرباح مستنية"); return; }
+    var taken = S.pending;
+    S.pending = 0;
+    give("coin", taken);
+    sfx("coin");
+    toast("استلمتي " + taken + " عملة من الكاشير");
+    fin(); return;
+
+  case "opening":
+    if (!spend(250)) return;
+    cdStart("opening");
+    S.partiesDone++;
+    give("heart",3); S.star += 2;
+    bumpRating(0.2);
+    toast("حفل الافتتاح نجح — قلوب ونجوم كتير");
+    fin(); return;
+
+  case "hire":
+    var hCost = {waiter:150,cook:200,cleaner:120};
+    if (S.staff[arg] === undefined){ toast("وظيفة غير معروفة"); return; }
+    if (S.staff[arg] >= 3){ toast("عندك 3 بالفعل"); return; }
+    if (!spend(hCost[arg])) return;
+    S.staff[arg]++;
+    toast("اتوظفت — بقى عندك " + S.staff[arg]);
+    fin(); return;
+
+  /* 9. الحفلات */
+  case "party":
+    var pCost = {birthday:200,buffet:350,star:700};
+    if (!spend(pCost[arg])) return;
+    cdStart("p_"+arg);
+    S.partiesDone++;
+    give("heart", arg==="star"?3:1);
+    S.star += arg==="star"?3:1;
+    earn(arg==="star"?150:60);
+    bumpRating(arg==="star"?0.3:0.15);
+    toast(arg==="star" ? "النجمة حضرت الحفلة — تقييمك اشتعل" : "الحفلة نجحت والزبائن مبسوطين");
+    fin(); return;
+
+  /* 10. الحيوانات */
+  case "petToggle":
+    if (!S.pets.on){ if (!spend(180)) return; S.pets.on = true; S.pets.clean = Math.max(60,S.pets.clean); toast("ركن القطط اتفتح 🐱"); }
+    else { S.pets.on = false; toast("ركن القطط اتقفل"); }
+    fin(); return;
+
+  case "petAcc":
+    if (!spend(60)) return;
+    S.pets.acc++;
+    bumpRating(0.03);
+    toast("إكسسوار جديد للقطط");
+    fin(); return;
+
+  case "petClean":
+    S.pets.clean = 100;
+    bumpRating(0.05);
+    toast("ركن الحيوانات نضيف");
+    fin(); return;
+
+  /* 11. ميني جيمز */
+  case "fruitStart":
+    S.mg.fruitsUntil = Date.now() + 12000;
+    S.mg.fruitsScore = 0;
+    say("اصطادي المكونات! يلا");
+    fin(); return;
+
+  case "fruitTap":
+    if (Date.now() > S.mg.fruitsUntil){
+      var fs = S.mg.fruitsScore || 0;
+      if (fs > (S.mg.fruitsBest||0)) S.mg.fruitsBest = fs;
+      S.mg.fruitsUntil = 0; S.mg.fruitsScore = 0;
+      earn(fs*3);
+      toast("خلص الصيد — " + fs + " مكون، +" + (fs*3) + " في الكاشير");
+      fin(); return;
+    }
+    S.mg.fruitsScore++;
+    sfx("collect");
+    if (S.mg.fruitsScore >= 25){
+      var fs2 = S.mg.fruitsScore;
+      if (fs2 > (S.mg.fruitsBest||0)) S.mg.fruitsBest = fs2;
+      S.mg.fruitsUntil = 0; S.mg.fruitsScore = 0;
+      earn(fs2*5);
+      S.star += 1;
+      toast("صيد ممتاز! " + fs2 + " مكون");
+    }
+    fin(); return;
+
+  case "colorStart":
+    S.mg.seq = [];
+    S.mg.input = [];
+    for (var cs=0;cs<4;cs++) S.mg.seq.push(rnd(0,3));
+    var cn = S.mg.seq.map(function(x){ return ["أحمر","أصفر","أزرق","أخضر"][x]; }).join("، ");
+    say("الترتيب هو: " + cn);
+    toast("الترتيب اتقال — كرريه");
+    fin(); return;
+
+  case "colorPick":
+    if (!S.mg.seq.length){ toast("ابدأي اللعبة الأول"); return; }
+    S.mg.input.push(n);
+    var pos = S.mg.input.length - 1;
+    if (S.mg.input[pos] !== S.mg.seq[pos]){
+      sfx("error");
+      S.mg.seq = []; S.mg.input = [];
+      toast("غلط — جرّبي تاني");
+      fin(); return;
+    }
+    if (S.mg.input.length === S.mg.seq.length){
+      S.star += 1; earn(30);
+      S.mg.seq = []; S.mg.input = [];
+      sfx("success");
+      toast("صح! +1 نجمة");
+    } else {
+      sfx("click");
+    }
+    fin(); return;
+
+  case "juiceStart":
+    S.mg.juiceSeq = [];
+    S.mg.juiceInput = [];
+    for (var js=0;js<3;js++) S.mg.juiceSeq.push(rnd(0,5));
+    var jn = ["مانجو","فراولة","ليمون","نعناع","تفاح","برتقال"];
+    say("نكهات العصير هي: " + S.mg.juiceSeq.map(function(x){ return jn[x]; }).join("، "));
+    toast("النكهات اتقالت — كرريها");
+    fin(); return;
+
+  case "juicePick":
+    if (!S.mg.juiceSeq.length){ toast("ابدأي التحدي الأول"); return; }
+    S.mg.juiceInput.push(n);
+    var jp = S.mg.juiceInput.length - 1;
+    if (S.mg.juiceInput[jp] !== S.mg.juiceSeq[jp]){
+      sfx("error");
+      S.mg.juiceSeq = []; S.mg.juiceInput = [];
+      toast("النكهة مش صح — جرّبي تاني");
+      fin(); return;
+    }
+    if (S.mg.juiceInput.length === S.mg.juiceSeq.length){
+      S.star += 1; earn(35);
+      S.mg.juiceSeq = []; S.mg.juiceInput = [];
+      sfx("success");
+      toast("ذاكرة حديدية! +1 نجمة");
+    } else {
+      sfx("click");
+    }
+    fin(); return;
+
+  /* 12. الأزياء */
+  case "wear":
+    var wkey = arg;
+    var wi = num(arg2);
+    if (wkey !== "outfit" && wkey !== "hat" && wkey !== "acc"){ toast("خيار غير معروف"); return; }
+    if (S.girl[wkey] === wi){ toast("مختار بالفعل"); return; }
+    if (!spend((wi+1)*90)) return;
+    S.girl[wkey] = wi;
+    sfx("buy");
+    toast("إطلالتك اتغيرت");
+    fin(); return;
+
+  case "mirror":
+    say("إطلالتك: " + OUTFITS[S.girl.outfit] + "، " + HATS[S.girl.hat] + "، " + ACCS[S.girl.acc]);
+    toast("إطلالة أنيقة ✨");
+    bumpRating(0.02);
+    save(); return;
+
+  /* 13. الكاميرا */
+  case "snap":
+    S.photos.push({ t:"ذكرى " + (S.photos.length+1), bg:BGS[S.photoBg], at:Date.now() });
+    sfx("success");
+    toast("صورة جديدة في الألبوم");
+    fin(); return;
+
+  case "share":
+    if (!S.photos.length){ toast("مفيش صور تشاركيها"); return; }
+    earn(20);
+    S.star += 1;
+    toast("الصورة اتشاركت — +1 نجمة");
+    fin(); return;
+
+  /* 14. الموسيقى */
+  case "track":
+    S.music.track = n;
+    S.music.on = true;
+    sfx("click");
+    toast("بنشغّل: " + TRACKS[n]);
+    fin(); return;
+
+  case "notify":
+    S.music.notify = n;
+    sfx("bell");
+    toast("نغمة التنبيه: " + NOTIFS[n]);
+    fin(); return;
+
+  case "musicToggle":
+    S.music.on = !S.music.on;
+    toast(S.music.on ? "الموسيقى شغالة: " + TRACKS[S.music.track] : "الموسيقى وقفت");
+    fin(); return;
+
+  case "quiet":
+    S.music.quiet = !S.music.quiet;
+    if (S.music.quiet) say("الوضع الهادئ اتشغل. قارئ الشاشة شغال والأصوات الصاخبة اتكتمت");
+    toast(S.music.quiet ? "الوضع الهادئ شغال" : "الوضع الهادئ اتلغى");
+    fin(); return;
+
+  /* 15. الأسرار */
+  case "secretBox":
+    if (!spend(100)) return;
+    S.secrets.box = true;
+    S.star += 2;
+    S.recipes.push({ id:"r"+Date.now(), n:"وصفة الجدة السرية", ing:["tomato","herb","milk"], base:28 });
+    toast("فتحتي الصندوق — وصفة الجدة اتضافت لقائمتك");
+    fin(); return;
+
+  case "secretBook":
+    if (!spend(250)) return;
+    S.secrets.book = true;
+    toast("الكتاب اتفتح — جودة كل الأطباق زادت");
+    fin(); return;
+
+  case "secretPotion":
+    if (S.heart < 1){ toast("محتاجة قلب واحد"); return; }
+    S.heart--;
+    S.secrets.potions++;
+    toast("صنعتي جرعة سعادة");
+    fin(); return;
+
+  case "usePotion":
+    if (S.secrets.potions <= 0){ toast("مفيش جرعات"); return; }
+    S.secrets.potions--;
+    bumpRating(0.1);
+    S.star += 1;
+    toast("الطاقم مبسوط — التقييم طلع");
+    fin(); return;
+
+  /* 16. التوصيل */
+  case "delOrder":
+    S.delivery.orders++;
+    sfx("bell");
+    toast("طلب توصيل جديد");
+    fin(); return;
+
+  case "delPack":
+    if (S.delivery.orders <= 0){ toast("مفيش طلبات مستلمة"); return; }
+    if (!spend(5)) return;
+    S.delivery.orders--;
+    S.delivery.packed++;
+    toast("حقيبة ورقية مجهزة");
+    fin(); return;
+
+  case "delSend":
+    if (S.delivery.packed <= 0){ toast("مفيش حقائب مجهزة"); return; }
+    var pay = S.delivery.packed * (25 + S.delivery.scooter*12);
+    S.delivery.packed = 0;
+    earn(pay);
+    give("xp",6);
+    sfx("success");
+    toast("التوصيل طار — +" + pay + " في الكاشير");
+    fin(); return;
+
+  case "delUp":
+    if (S.delivery.scooter >= 5){ toast("السكوتر في أعلى مستوى"); return; }
+    if (!spend((S.delivery.scooter+1)*150)) return;
+    S.delivery.scooter++;
+    toast("السكوتر اتطور — مستوى " + S.delivery.scooter);
+    fin(); return;
+
+  /* 17. الهدايا */
+  case "giftGuest":
+    if (!spend(70)) return;
+    S.gifts.given++;
+    S.gifts.loved += 5;
+    give("heart",1);
+    toast("الزبونة فرحت بالهدية — +قلب و+5 نقاط حب");
+    fin(); return;
+
+  case "souvenir":
+    if (!spend(40)) return;
+    S.gifts.souvenirs++;
+    earn(70);
+    toast("التذكار اتباع — +70 في الكاشير");
+    fin(); return;
+
+  case "loveDeco":
+    if (S.gifts.loved < 10){ toast("محتاجة 10 نقاط حب"); return; }
+    S.gifts.loved -= 10;
+    bumpRating(0.1);
+    S.star += 1;
+    toast("ديكور حصري جديد في المطعم");
+    fin(); return;
+
+  /* 18. الإعدادات */
+  case "srTest":
+    say("اختبار قارئ الشاشة: زر رجوع، زر إعادة النطق، وكل الأزرار ليها اسم واضح");
+    toast("الاختبار اتشغل");
+    save(); return;
+
+  case "autoRead":
+    S.autoRead = !S.autoRead;
+    toast(S.autoRead ? "القراءة التلقائية شغالة" : "القراءة التلقائية وقفت");
+    fin(); return;
+
+  case "simple":
+    S.simple = !S.simple;
+    toast(S.simple ? "اللغة المبسطة شغالة" : "رجعنا للنص العادي");
+    fin(); return;
+
+  case "bigText":
+    S.bigText = !S.bigText;
+    try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
+    toast(S.bigText ? "الخط كبير" : "الخط عادي");
+    fin(); return;
+
+  case "mute":
+    S.muted = !S.muted;
+    toast(S.muted ? "الصوت اتكتم" : "الصوت رجع");
+    save(); render(); return;
+
+  case "resetAsk":
+    var last = S.cd.resetAsk || 0;
+    if (last && Date.now() - last < 10000){
+      S = defState();
+      dailyReset();
+      try{ document.body.className = ""; }catch(e){}
+      save();
+      STACK = []; cur = "home"; render();
+      toast("اللعبة رجعت من الأول");
+      return;
+    }
+    S.cd.resetAsk = Date.now();
+    toast("اضغطي تاني خلال 10 ثواني للتأكيد");
+    save(); render(); return;
+
+  case "report":
+    say("تقرير رضا العملاء: متوسط التقييم " + S.rating.toFixed(1) + " من 5، وعدد الآراء " + S.reviews.length + "، وعدد الزبائن اللي خدموا " + S.served);
+    toast("التقرير اتقرا");
+    save(); return;
+
+  /* 19. الحديقة */
+  case "plant":
+    var pCost = arg === "tomatoAt" ? 12 : 10;
+    if (S.garden[arg]){ toast("فيه زرع بالفعل"); return; }
+    if (!spend(pCost)) return;
+    S.garden[arg] = Date.now();
+    toast("الزرع بدأ — استني 45 ثانية");
+    fin(); return;
+
+  case "harvest":
+    var hKey = arg === "tomato" ? "tomatoAt" : "herbAt";
+    var at = S.garden[hKey];
+    if (!at){ toast("مفيش زرع هنا"); return; }
+    var growSec = S.garden.watered ? 20 : 45;
+    if (Date.now() - at < growSec*1000){ toast("لسه بينمو — استني " + Math.ceil((growSec*1000-(Date.now()-at))/1000) + " ث"); return; }
+    S.garden[hKey] = 0;
+    if (arg === "tomato") S.stock.tomato += 3;
+    else S.stock.herb += 3;
+    give("xp",5);
+    toast("حصاد ناجح — +3 " + (arg==="tomato"?"طماطم":"أعشاب"));
+    fin(); return;
+
+  case "water":
+    S.garden.watered = !S.garden.watered;
+    toast(S.garden.watered ? "الري التلقائي شغال — الحصاد أسرع" : "الري وقف");
+    fin(); return;
+
+  /* 20. إعادة التدوير */
+  case "craft":
+    var needM = {decor:5, vase:3, candle:4};
+    var keyC = arg === "vase" ? "vases" : arg;
+    if (needM[arg] === undefined){ toast("صنعة غير معروفة"); return; }
+    if (S.recycleMat < needM[arg]){ toast("محتاجة " + needM[arg] + " خامات — ارمي بقايا من المخزن"); return; }
+    S.recycleMat -= needM[arg];
+    S.recycle[keyC]++;
+    bumpRating(0.03);
+    give("xp",6);
+    toast("اتصنعت — بقى عندك " + S.recycle[keyC]);
+    fin(); return;
+
+  /* 21. الطاقم */
+  case "uniform":
+    if (S.uniforms >= 5){ toast("الزي في أعلى مستوى"); return; }
+    if (!spend(120)) return;
+    S.uniforms++;
+    bumpRating(0.05);
+    toast("الطاقم بقى أنيق — مستوى " + S.uniforms);
+    fin(); return;
+
+  case "badge":
+    if (!spend(50)) return;
+    S.badges++;
+    toast("بطاقة تعريف جاهزة");
+    fin(); return;
+
+  case "employee":
+    S.employeeOfMonth = arg;
+    bumpRating(0.15);
+    give("heart",1);
+    toast("اتكرمت " + arg + " — الطاقم فرحان");
+    fin(); return;
+
+  /* 22. أونلاين */
+  case "online":
+    if (arg === "party"){
+      if (!spend(150)) return;
+      cdStart("o_party");
+      S.online.hosted++;
+      S.partiesDone++;
+      give("heart",2);
+      bumpRating(0.1);
+      toast("حفلة المطبخ الجماعية بدأت — +2 قلب");
+    } else if (arg === "cup"){
+      cdStart("o_cup");
+      if (Math.random() < 0.5){
+        S.online.wins++;
+        S.star += 3;
+        earn(120);
+        toast("كسبتي الكأس الذهبية! +3 نجوم");
+      } else {
+        earn(30);
+        toast("المنافسة كانت قوية — +30 في الكاشير");
+      }
+    }
+    fin(); return;
+
+  case "onlineGift":
+    if (cdLeft("onlineGift", 300000) > 0){ toast("استني " + cdLeft("onlineGift",300000) + " ث"); return; }
+    cdStart("onlineGift");
+    S.gifts.loved += 3;
+    give("heart",1);
+    S.mail.unshift({ t:"صديقة من اللعبة", d:"شكراً على تبادل الوصفة! بعتتلك قلب." });
+    if (S.mail.length > 20) S.mail.pop();
+    toast("اتبادلت وصفة — +قلب ورسالة جديدة");
+    fin(); return;
+
+  /* 23. المشروبات */
+  case "makeDrink":
+    if (!requirePower()) return;
+    var dCost = {latte:8, cappuccino:8, mocha:10, juice:8, tea:6};
+    var dc = dCost[arg];
+    if (dc === undefined){ toast("مشروب غير معروف"); return; }
+    if (arg === "juice" && !S.stock.fruit){ toast("محتاجة فواكه — اشتري من المتجر"); return; }
+    if (arg === "tea" && !S.stock.herb){ toast("محتاجة أعشاب — ازرعي في الحديقة"); return; }
+    if (!spend(dc)) return;
+    if (arg === "juice") S.stock.fruit--;
+    if (arg === "tea") S.stock.herb--;
+    S.readyDrinks.push(arg);
+    sfx("success");
+    toast("المشروب جاهز: " + drinkLabel(arg));
+    fin(); return;
+
+  /* 24. المكافآت */
+  case "dailyGift":
+    if (S.day.gift){ toast("استلمتي هدية النهارده — تعالي بكرة"); return; }
+    S.day.gift = true;
+    var g1 = rnd(50,120);
+    give("coin", g1);
+    if (Math.random() < 0.3) give("heart",1);
+    sfx("collect");
+    toast("هدية النهارده: " + g1 + " عملة");
+    fin(); return;
+
+  case "wheel":
+    if (S.day.wheel){ toast("لفّيتي العجلة النهارده"); return; }
+    S.day.wheel = true;
+    var prizes = [ {k:"coin",v:80}, {k:"coin",v:150}, {k:"star",v:1}, {k:"heart",v:1}, {k:"coin",v:40}, {k:"star",v:2} ];
+    var pz = pick(prizes);
+    if (pz.k === "coin") give("coin", pz.v);
+    else if (pz.k === "heart") give("heart", pz.v);
+    else S.star += pz.v;
+    sfx("wheel");
+    toast("العجلة وقفت على: " + (pz.k==="coin"?pz.v+" عملة":(pz.k==="star"?pz.v+" نجمة":"قلب حب")));
+    fin(); return;
+
+  case "weekClaim":
+    if (S.week.claimed){ toast("استلمتي الوسام هذا الأسبوع"); return; }
+    if (S.week.serve < 15){ toast("محتاجة تخدمي 15 زبونة هذا الأسبوع"); return; }
+    S.week.claimed = true;
+    S.star += 5;
+    give("coin",300);
+    toast("وسام الشيف الذهبي الملكي بقى ليكي! +5 نجوم");
+    fin(); return;
+
+  case "claimDaily":
+    if (S.day.claims.indexOf(arg) >= 0){ toast("اتسلمت النهارده"); return; }
+    if (arg === "cook"){
+      if (S.day.cook < 3){ toast("لسه محتاجة تطبخي 3 أطباق"); return; }
+      S.day.claims.push("cook");
+      give("coin",60); S.star += 1;
+      toast("تحدي الطبخ خلص — +60 عملة");
+    } else if (arg === "serve"){
+      if (S.day.serve < 3){ toast("لسه محتاجة تخدمي 3 زبائن"); return; }
+      S.day.claims.push("serve");
+      give("coin",60); S.star += 1;
+      toast("تحدي الخدمة خلص — +60 عملة");
+    }
+    fin(); return;
+
+  /* 25. النكهات */
+  case "flavor":
+    if (!spend(25)) return;
+    var f1 = pick(Object.keys(ING)), f2 = pick(Object.keys(ING));
+    var names = [ING[f1], ING[f2]];
+    S.experiments.push({ n:"تجربة " + (S.experiments.length+1), d:names[0] + " + " + names[1] + " — طعم " + pick(["حلو","حامي","غريب","لذيذ","مجنون"]) });
+    if (S.experiments.length > 30) S.experiments.shift();
+    if (Math.random() < 0.2){ S.magic = true; toast("طلعت نكهة سحرية! هتتحسب في الطبق الجاي"); }
+    else toast("تجربة جديدة اتسجلت في السجل");
+    fin(); return;
+
+  case "magicOn":
+    if (S.magic){ toast("النكهة السحرية جاهزة بالفعل"); return; }
+    if (!spend(50)) return;
+    S.magic = true;
+    toast("الماكينة شغالة — الطبق الجاي هيكون مميز");
+    fin(); return;
+
+  /* 26. الروبوت */
+  case "robotToggle":
+    if (!S.robot.on){
+      if (!spend(300)) return;
+      S.robot.on = true;
+      S.robot.owns = true;
+      toast("الروبوت المساعد اتشغل — بيغسل وينظّم");
+    } else {
+      S.robot.on = false;
+      toast("الروبوت اتوقف");
+    }
+    fin(); return;
+
+  case "robotBat":
+    if (S.robot.bat >= 5){ toast("البطارية في أعلى مستوى"); return; }
+    if (!spend((S.robot.bat+1)*80)) return;
+    S.robot.bat++;
+    toast("البطارية اتقوت — مستوى " + S.robot.bat);
+    fin(); return;
+
+  case "robotColor":
+    if (!spend(40)) return;
+    S.robot.color = (S.robot.color + 1) % 4;
+    toast("شكل الروبوت اتغير");
+    fin(); return;
+
+  /* 27. الطقس */
+  case "winter":
+    if (!S.winter){ if (!spend(120)) return; S.winter = true; bumpRating(0.05); toast("ركن المشروبات الساخنة اتفتح"); }
+    else { S.winter = false; toast("الركن اتقفل"); }
+    fin(); return;
+
+  case "umbrella":
+    if (!S.umbrellas){ if (!spend(90)) return; S.umbrellas = true; toast("المظلات اتجهزت للمطر والثلج"); }
+    else { S.umbrellas = false; toast("المظلات اتشالت"); }
+    fin(); return;
+
+  /* 28. الإحصائيات */
+  case "badgeAward":
+    if (S.rating < 4){ toast("وسام الأداء محتاج تقييم 4 نجوم"); return; }
+    if (S.cd.badgeAward && Date.now() - S.cd.badgeAward < 86400000){ toast("استلمتي الوسام النهارده"); return; }
+    S.cd.badgeAward = Date.now();
+    S.star += 2;
+    give("coin",100);
+    toast("وسام الأداء المتميز — +2 نجمة");
+    fin(); return;
+
+  case "idea":
+    if (!spend(45)) return;
+    var ia = pick(Object.keys(ING)), ib = pick(Object.keys(ING)), ic = pick(Object.keys(ING));
+    S.experiments.push({ n:"فكرة وصفة " + (S.experiments.length+1), d:ING[ia] + " + " + ING[ib] + " + " + ING[ic] });
+    if (S.experiments.length > 30) S.experiments.shift();
+    toast("فكرة جديدة: " + ING[ia] + " + " + ING[ib] + " + " + ING[ic]);
+    fin(); return;
+
+  default:
+    toast("الزر ده مش متاح");
+    return;
+  }
+}
+
+/* ===== التشغيل ===== */
+try{ if (location.hash === "#reset") localStorage.removeItem(LS); }catch(e){}
+load();
+try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
+render();
+
+/* تحديث خفيف للشاشات اللي فيها وقت أو صبر */
+setInterval(function(){
+  if (cur === "tables" || cur === "cut" || cur === "stove" || cur === "garden" || cur === "chall" || cur === "minigames"){
+    var y = 0;
+    try{ y = window.scrollY || window.pageYOffset || 0; }catch(e){}
+    render();
+    try{ window.scrollTo(0, y); }catch(e){}
+  }
+}, 1000);
+</script>
+</body>
+</html>
