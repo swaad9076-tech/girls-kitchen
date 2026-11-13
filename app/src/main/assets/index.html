@@ -112,6 +112,50 @@ var STORY = [
   {n:"الفصل السادس: مطبخ البنات العالمي", d:"اسمك بقى على كل لسان، وحلمك اتحقق.", need:function(){return S.level>=8;}, rw:{coin:1200, star:3}}
 ];
 
+/* ===== بيانات الأونلاين الابتدائية ===== */
+function seedRooms(){
+  return [
+    {id:"s1", name:"مطعم سارة", owner:"سارة", priv:false, pass:"", open:true, linkOn:false, mic:true, chatOn:true, started:true, mine:false, bot:false,
+      players:[{n:"سارة",g:"بنت",mic:true,muted:false,score:420},{n:"نور",g:"بنت",mic:false,muted:false,score:310},{n:"مريم",g:"بنت",mic:true,muted:false,score:265}]},
+    {id:"s2", name:"مطعم ريم", owner:"ريم", priv:true, pass:"1234", open:true, linkOn:false, mic:false, chatOn:true, started:false, mine:false, bot:false,
+      players:[{n:"ريم",g:"بنت",mic:false,muted:false,score:180},{n:"هنا",g:"بنت",mic:false,muted:false,score:150}]},
+    {id:"s3", name:"مطعم مريم", owner:"مريم", priv:false, pass:"", open:true, linkOn:true, mic:true, chatOn:true, started:true, mine:false, bot:false,
+      players:[{n:"مريم",g:"بنت",mic:true,muted:false,score:510},{n:"جنى",g:"بنت",mic:true,muted:false,score:430},{n:"ملك",g:"بنت",mic:false,muted:false,score:390},{n:"روان",g:"بنت",mic:true,muted:false,score:205}]},
+    {id:"s4", name:"مطعم هنا", owner:"هنا", priv:false, pass:"", open:false, linkOn:false, mic:false, chatOn:true, started:false, mine:false, bot:false, players:[{n:"هنا",g:"بنت",mic:false,muted:false,score:120}]},
+    {id:"s5", name:"مطعم جنة", owner:"جنة", priv:true, pass:"5555", open:true, linkOn:false, mic:false, chatOn:true, started:false, mine:false, bot:false,
+      players:[{n:"جنة",g:"بنت",mic:false,muted:false,score:95}]}
+  ];
+}
+function seedReqs(){
+  return [{n:"سارة",g:"بنت"},{n:"نور",g:"بنت"}];
+}
+function seedMsgs(){
+  return [{n:"سارة", t:"وحشتيني يا وعد! مطعمك كبر ولا إيه؟", mine:false, audio:""}];
+}
+function inputVal(id){
+  var e = document.getElementById(id);
+  return e && e.value ? String(e.value).trim() : "";
+}
+function myScore(){
+  return S.level*100 + S.served*10 + Math.floor(S.totalEarned/40) + S.star*5;
+}
+function onlineRoom(){
+  return S.online.room;
+}
+function findRoom(id){
+  for (var i=0;i<S.online.rooms.length;i++) if (S.online.rooms[i].id === id) return S.online.rooms[i];
+  if (S.online.room && S.online.room.id === id) return S.online.room;
+  return null;
+}
+function joinRoom(r){
+  S.online.room = r;
+  S.online.joinId = "";
+  S.online.joinErr = "";
+  sfx("click");
+  toast("دخلتي طاولة " + r.name + " — صاحبتها " + r.owner);
+  go("room");
+}
+
 /* ===== الحالة ===== */
 function defState(){
   return {
@@ -136,7 +180,8 @@ function defState(){
     gifts:{given:0, souvenirs:0, loved:0},
     garden:{tomatoAt:0, herbAt:0, watered:false},
     recycleMat:0, recycle:{decor:0,vases:0,candles:0},
-    online:{hosted:0, wins:0},
+    online:{hosted:0, wins:0, nick:"وعد", gender:"بنت", room:null, rooms:seedRooms(), joinId:"", joinErr:"", newPriv:false, reqs:seedReqs(), friends:[{n:"سارة",g:"بنت"},{n:"نور",g:"بنت"}], blocked:[], msgs:seedMsgs(), chatWith:""},
+    cash:{open:false, drawer:0, given:0},
     weatherDay:"", weather:"مشمس", umbrellas:false, winter:false,
     day:{date:"", gift:false, wheel:false, cook:0, serve:0, claims:[]},
     week:{key:"", serve:0, claimed:false},
@@ -287,7 +332,7 @@ function bar(pct, cls){
 }
 function pendingLine(){
   if (S.pending <= 0) return '';
-  return '<div class="card" style="background:#fff5d6"><div class="kv"><span>أرباح محتاجة استلام من الكاشير</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+b("روحي للكاشير واستلمي", "go", "story", "o sm")+'</div>';
+  return '<div class="card" style="background:#fff5d6"><div class="kv"><span>أرباح محتاجة استلام من الكاشير</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+b("روحي للكاشير واستلمي", "go", "cashier", "o sm")+'</div>';
 }
 
 /* ===== اليوم والأسبوع ===== */
@@ -360,6 +405,9 @@ SCREENS.home = function(){
   h += '<div class="hero"><div class="h1">أهلاً يا شيف 👩‍🍳</div><div class="small">مطعمك الصغير مستنيكي. اختاري قسم وابدأي</div>'+
        bar((S.xp/xpNeed)*100)+'<div class="small">المستوى '+S.level+' — '+S.xp+' / '+xpNeed+' خبرة</div></div>';
   h += pendingLine();
+  h += '<div class="card" style="background:#fff7e2"><div class="ct">عجلة الحظ</div>'+
+       '<div class="small">10000 عملة و 5000 قلب — لفة واحدة كل يوم.</div>'+
+       (S.day.wheel ? '<span class="tag g">لفّيتيها النهارده</span>' : b("لفّي عجلة الحظ","wheel",null,"g bigbtn"))+'</div>';
   if (S.dirty >= 5) h += '<div class="hint">فيه '+S.dirty+' طبق متسخ في الحوض — ده بيأثر على تقييم النظافة. اغسليهم من قسم المخزن.</div>';
   var groups = [];
   for (var i=0;i<SECTIONS.length;i++){ if (groups.indexOf(SECTIONS[i].g) < 0) groups.push(SECTIONS[i].g); }
@@ -621,10 +669,10 @@ SCREENS.tables = function(){
     any = true;
     var pat = patLeft(g);
     h += '<div class="card"><div class="kv"><span>'+(g.vip?"طاولة VIP ":"طاولة ")+(i+1)+' — '+g.name+'</span>'+(g.vip?'<span class="tag o">VIP</span>':'')+'</div>'+
-      '<div class="small">الطلب: '+dishName(g.food)+' + '+drinkName(g.drink)+'</div>'+
+      '<div class="small">طلبت: '+dishName(g.food)+' + '+drinkName(g.drink)+'</div>'+
       bar(pat, pat>50?"g":(pat>25?"":"r"))+
       '<div class="small">الصبر: '+pat+'%</div>'+
-      '<div class="row">'+b("قدّمي الطلب","serve",String(i),"g sm")+b("طرد الخروج","kick",String(i),"d sm")+'</div></div>';
+      '<div class="row">'+b("تقديم الطلب","serve",String(i),"g sm")+b("طرد الخروج","kick",String(i),"d sm")+'</div></div>';
   }
   if (!any) h += '<div class="small center">مفيش زبائن دلوقتي — اضغطي استقبلي زبونة.</div>';
   h += card("الأطباق الجاهزة",
@@ -649,6 +697,47 @@ SCREENS.reviews = function(){
     list += '<div class="kv"><span>'+r.n+'<div class="small">'+r.t+'</div></span>'+starsTxt(r.s)+'</div>';
   }
   return h + card("تعليقات الزبائن", list) + b("رجوع للطاولات","go","tables","p");
+};
+
+/* ===== 4ب. الكاشير والدرج ===== */
+SCREENS.cashier = function(){
+  var h = head("الكاشير");
+  var c = S.cash;
+  h += card("تحسين الحسابات",
+    '<div class="kv"><span>فلوس مستنية في الكاشير</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+
+    '<div class="kv"><span>فلوس جوه الدرج</span><b>'+ICON.coin+' '+fmtNum(c.drawer)+'</b></div>'+
+    ((S.pending + c.drawer) > 0
+      ? b("استلمي الفلوس — تحسين الحسابات","cashCollect",null,"g bigbtn")
+      : '<div class="small">مفيش فلوس تستلميها دلوقتي. اخدمي زبائن الأول.</div>')
+  );
+  h += card("الدرج",
+    '<div class="kv"><span>حالة الدرج</span><b>'+(c.open?"مفتوح":"مقفول")+'</b></div>'+
+    '<div class="small">افتحي الدرج، حطي الفلوس، واقفليه. لو الزبون محتاج باقي: افتحي الدرج، اضغطي الباقي، اختاري المبلغ، سلّميه، وبعدها اقفلي الدرج.</div>'+
+    (c.open
+      ? b("حط الفلوس في الدرج","drawerPut",null,"p")+
+        b("الباقي للزبون","drawerChange",null,"o")+
+        b("اقفل الدرج","drawerClose",null,"g")
+      : b("افتحي الدرج","drawerOpen",null,"p"))
+  );
+  if (c.given > 0) h += '<div class="small center">باقي اترجع للزبائن لحد دلوقتي: '+fmtNum(c.given)+' عملة</div>';
+  h += card("ملخص الحساب",
+    '<div class="kv"><span>إجمالي اللي كسبتيه</span><b>'+ICON.coin+' '+fmtNum(S.totalEarned)+'</b></div>'+
+    '<div class="kv"><span>رصيدك الحالي</span><b>'+ICON.coin+' '+fmtNum(S.coin)+'</b></div>'
+  );
+  return h;
+};
+
+SCREENS.change = function(){
+  var h = head("الباقي للزبون");
+  var amounts = [5,10,20,50,100];
+  var grid = "";
+  for (var i=0;i<amounts.length;i++) grid += b(amounts[i] + " عملة","drawerGive",String(amounts[i]),"o sm");
+  h += card("اختاري الباقي",
+    '<div class="small">الدرج فيه '+fmtNum(S.cash.drawer)+' عملة. اختاري المبلغ اللي هترجعيه للزبون.</div>'+
+    grid+
+    b("رجوع للكاشير","go","cashier","sm")
+  );
+  return h;
 };
 
 /* ===== 5. التحديات ===== */
@@ -751,7 +840,8 @@ SCREENS.story = function(){
   h += list;
   h += card("الكاشير واستلام العملات",
     '<div class="kv"><span>أرباح مستنية الاستلام</span><b>'+ICON.coin+' '+fmtNum(S.pending)+'</b></div>'+
-    b("استلمي الأرباح يدوياً","cashier",null,"g bigbtn")
+    '<div class="small">جوه الكاشير كمان: تحسين الحسابات، والدرج، والباقي للزبائن.</div>'+
+    b("افتحي الكاشير","go","cashier","g bigbtn")
   );
   h += card("دفتر ملاحظات الوصفات",
     '<div class="small">وصفاتك: '+(S.recipes.length ? S.recipes.map(function(r){return r.n;}).join("، ") : "لسه مفيش وصفات ابتكرتيها")+'</div>'
@@ -1070,21 +1160,271 @@ SCREENS.staffstyle = function(){
   return h;
 };
 
-/* ===== 22. اللعب الجماعي ===== */
+/* ===== 22. الأونلاين ===== */
+var REC = {on:false, mr:null, chunks:[], stream:null, t0:0};
+function recStart(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+    toast("الميكروفون مش متاح على الجهاز ده — اكتبي رسالتك والنظام هيقراها بصوت");
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
+    REC.stream = st;
+    REC.chunks = [];
+    REC.mr = new MediaRecorder(st);
+    REC.mr.ondataavailable = function(e){ if (e.data && e.data.size) REC.chunks.push(e.data); };
+    REC.mr.onstop = function(){
+      var secs = Math.max(1, Math.round((Date.now() - REC.t0)/1000));
+      var url = "";
+      try{ url = URL.createObjectURL(new Blob(REC.chunks, {type:"audio/webm"})); }catch(e){}
+      S.online.msgs.push({n:S.online.nick, mine:true, audio:url, dur:secs, t:""});
+      try{ if (REC.stream) REC.stream.getTracks().forEach(function(tr){ tr.stop(); }); }catch(e){}
+      REC.stream = null; REC.mr = null; REC.on = false;
+      save();
+      toast("اتبعتت رسالة صوتية مدتها " + secs + " ثانية");
+      render();
+    };
+    REC.t0 = Date.now();
+    REC.mr.start();
+    REC.on = true;
+    sfx("click");
+    toast("التسجيل بدأ — اتكلمي، واضغطي تاني عشان تبعتي");
+    render();
+  }).catch(function(){
+    toast("مش قادرة أفتح الميكروفون. اسمحي بالمايك من إعدادات التطبيق، أو اكتبي رسالتك والنظام هيقراها بصوت");
+  });
+}
+function recStop(){
+  if (!REC.mr){ REC.on = false; render(); return; }
+  try{ REC.mr.stop(); }catch(e){ REC.on = false; }
+}
+function inviteCode(room){
+  if (!room.code){
+    var s = 0;
+    for (var i=0;i<room.name.length;i++) s = (s*31 + room.name.charCodeAt(i)) % 90000;
+    room.code = "KITCHEN-" + (10000 + s);
+  }
+  return room.code;
+}
+function rankList(room){
+  var arr = [];
+  for (var i=0;i<room.players.length;i++){
+    var p = room.players[i];
+    arr.push({n:p.n, g:p.g, mic:p.mic, muted:p.muted, bot:!!p.bot, me:false, score:p.score||0});
+  }
+  arr.push({n:S.online.nick, g:S.online.gender, mic:S.online.mic, muted:false, me:true, score:myScore()});
+  arr.sort(function(a,b){ return b.score - a.score; });
+  return arr;
+}
+
 SCREENS.online = function(){
-  var h = head("ألعاب الحفلات الجماعية");
-  h += card("استضافة حفلة مطبخ جماعية",
-    '<div class="small">حفلة أونلاين مع صديقاتك — كل واحدة تطبخ طبق.</div>'+
-    cdBtn("استضيفي حفلة (150 عملة)","online","party","o_party",1800000,"p sm")
+  var o = S.online;
+  var h = head("قسم الأونلاين");
+  h += card("ملفي الشخصي",
+    '<div class="kv"><span>الاسم</span><b>'+o.nick+'</b></div>'+
+    '<div class="kv"><span>الجنس</span><b>'+o.gender+'</b></div>'+
+    b("افتحي الملف الشخصي","go","profile","p sm")
   );
-  h += card("تحدي الطهي الجماعي التنافسي",
-    '<div class="small">تنافسي على كأس ذهبية. النتيجة بتظهر فوراً.</div>'+
-    cdBtn("ادخلي التحدي","online","cup","o_cup",900000,"g sm")+
-    '<div class="kv"><span>مرات الفوز</span><b>'+S.online.wins+'</b></div>'
+  h += card("طاولتي",
+    o.room
+      ? '<div class="kv"><span>'+o.room.name+'</span><b>'+(o.room.priv?"خاصة":"عامة")+'</b></div>'+
+        '<div class="kv"><span>اللاعبين</span><b>'+o.room.players.length+' / 12</b></div>'+
+        b("ارجعي للطاولة","go","room","g bigbtn")
+      : '<div class="small">مفيش طاولة مفتوحة باسمك. اعملي طاولة واللاعبات ينضموا ليكي — الطاولة بتشيل لحد 12 لاعب.</div>'+
+        b("إنشاء طاولة","go","createRoom","g bigbtn")
   );
-  h += card("تبادل الهدايا والوصفات",
+  var list = "";
+  for (var i=0;i<o.rooms.length;i++){
+    var r = o.rooms[i];
+    if (!r.open) continue;
+    if (o.blocked.indexOf(r.owner) >= 0) continue;
+    var joined = o.room && o.room.id === r.id;
+    list += '<div class="kv"><span>'+r.name+'<div class="small">صاحبتها '+r.owner+' — '+r.players.length+' لاعبين</div></span>'+
+      (r.priv?'<span class="tag o">خاصة</span>':'<span class="tag g">عامة</span>')+'</div>'+
+      (joined ? '<span class="tag g">انتي جواها</span>' : b("انضمي لطاولة "+r.name,"oJoin",r.id,"sm"));
+    if (o.joinId === r.id && !joined){
+      list += '<div class="card" style="background:#fff6ec"><div class="small">الطاولة خاصة — اكتبي كلمة المرور:</div>'+
+        '<input id="jpass" type="password" placeholder="كلمة المرور" aria-label="كلمة مرور الطاولة">'+
+        b("ادخلي بالكلمة","oPassTry",r.id,"p sm")+
+        (o.joinErr?'<div class="small" style="color:#b03030">'+o.joinErr+'</div>':'')+'</div>';
+    }
+  }
+  h += card("الطاولات المفتوحة", list || '<div class="small">مفيش طاولات مفتوحة دلوقتي.</div>');
+  h += card("طلبات الصداقة",
+    '<div class="kv"><span>طلبات مستنية</span><b>'+o.reqs.length+'</b></div>'+
+    b("شوفي الطلبات","go","reqs","p sm")
+  );
+  h += card("الرسائل الصوتية",
+    '<div class="kv"><span>رسائل</span><b>'+o.msgs.length+'</b></div>'+
+    b("افتحي الرسائل","go","chat","p sm")
+  );
+  h += card("قائمة المحظورين",
+    '<div class="kv"><span>عدد المحظورين</span><b>'+o.blocked.length+'</b></div>'+
+    b("افتحي قائمة المحظورين","go","blocked","sm")
+  );
+  h += card("ألعاب سريعة أونلاين",
+    cdBtn("حفلة مطبخ (150 عملة)","online","party","o_party",1800000,"p sm")+
+    cdBtn("تحدي الكأس","online","cup","o_cup",900000,"g sm")+
     b("بادلي وصفة مع صديقة","onlineGift",null,"o sm")+
-    '<div class="kv"><span>حفلات مستضافة</span><b>'+S.online.hosted+'</b></div>'
+    '<div class="kv"><span>مرات الفوز</span><b>'+o.wins+'</b></div>'
+  );
+  return h;
+};
+
+SCREENS.profile = function(){
+  var o = S.online;
+  var h = head("ملفي الشخصي");
+  h += card("بياناتي",
+    '<div class="small">الاسم ده اللي بيظهر للاعبين في الطاولة والطلبات.</div>'+
+    '<input id="onick" type="text" value="'+o.nick+'" placeholder="اسمك" aria-label="اسمك في الأونلاين">'+
+    b("احفظي الاسم","oName",null,"p sm")+
+    '<div class="kv"><span>الجنس</span><b>'+o.gender+'</b></div>'+
+    b("غيّري الجنس","oGender",null,"o sm")+
+    '<div class="kv"><span>نتيجتي في اللعب</span><b>'+myScore()+'</b></div>'
+  );
+  h += card("طلبات الصداقة",
+    o.reqs.length ? '<div class="small">عندك '+o.reqs.length+' طلب مستني.</div>'+b("راجعي الطلبات","go","reqs","p sm") : '<div class="small">مفيش طلبات جديدة دلوقتي.</div>'
+  );
+  var fr = "";
+  for (var i=0;i<o.friends.length;i++){
+    fr += '<div class="kv"><span>'+o.friends[i].n+'<div class="small">'+o.friends[i].g+'</div></span></div>'+
+      '<div class="row">'+b("رسالة","oChatWith",o.friends[i].n,"p sm")+b("حظر","oBlock",o.friends[i].n,"d sm")+'</div>';
+  }
+  h += card("صديقاتي", fr || '<div class="small">لسه مفيش صديقات.</div>');
+  h += card("المحظورين",
+    '<div class="small">المحظور مش هيقدر ينضم لطاولتك ولا يبعتلك طلب.</div>'+
+    b("قائمة المحظورين","go","blocked","sm")
+  );
+  return h;
+};
+
+SCREENS.createRoom = function(){
+  var o = S.online;
+  var h = head("إنشاء طاولة");
+  h += card("بيانات الطاولة",
+    '<div class="small">اسم الطاولة هيظهر في قائمة الطاولات المفتوحة لكل اللاعبين.</div>'+
+    '<input id="oroom" type="text" value="مطعم '+o.nick+'" placeholder="اسم الطاولة" aria-label="اسم الطاولة">'+
+    '<div class="kv"><span>نوع الطاولة</span><b>'+(o.newPriv?"خاصة بكلمة مرور":"عامة للكل")+'</b></div>'+
+    b(o.newPriv?"خليها عامة":"خليها خاصة","oPriv",null,"o sm")+
+    (o.newPriv?'<input id="opass" type="password" placeholder="كلمة المرور" aria-label="كلمة مرور الطاولة">':'')+
+    b("اعملي الطاولة","oCreate",null,"g bigbtn")
+  );
+  h += card("قبل ما تبدأي",
+    '<div class="small">الطاولة بتشيل لحد 12 لاعب. الخاصة بتفتح بكلمة مرور لأصحابك بس، والغلط بيظهر له رسالة إن الكلمة غلط. المحظورين مش هيقدروا ينضموا.</div>'
+  );
+  return h;
+};
+
+SCREENS.room = function(){
+  var room = S.online.room;
+  if (!room) return head("طاولة") + card("مفيش طاولة مفتوحة", b("ارجعي للأونلاين","go","online","p"));
+  var h = head(room.name);
+  h += card("الطاولة",
+    '<div class="kv"><span>النوع</span><b>'+(room.priv?"خاصة بكلمة مرور":"عامة")+'</b></div>'+
+    '<div class="kv"><span>المشرفة</span><b>'+room.owner+'</b></div>'+
+    '<div class="kv"><span>اللاعبين</span><b>'+room.players.length+' / 12</b></div>'+
+    '<div class="kv"><span>اللعبة</span><b>'+(room.started?"شغالة":"متوقفة")+'</b></div>'+
+    '<div class="kv"><span>الميكروفون بتاعك</span><b>'+(S.online.mic?"شغال":"مقفول")+'</b></div>'+
+    b(S.online.mic?"اقفلي الميكروفون":"شغّلي الميكروفون","oMic",null,"p")+
+    b("قائمة اللاعبين والنتايج","go","players","sm")
+  );
+  if (room.mine){
+    h += card("أدوات المشرفة",
+      '<div class="kv"><span>رابط الدعوة</span><b>'+(room.linkOn?"شغال":"موقوف")+'</b></div>'+
+      b(room.linkOn?"ايقاف الرابط":"تشغيل الرابط","oLink",null,"o sm")+
+      (room.linkOn ? '<div class="small">رابط الدعوة: '+inviteCode(room)+'</div>'+b("انسخي الرابط","oCopy",null,"sm") : '')+
+      b(room.bot?"البوت في الطاولة":"أضيفي بوت يلعب ضدك","oBot",null,"g sm")+
+      (room.started
+        ? b("ايقاف اللعبة","oStop",null,"d sm")+b("استئناف اللعبة","oStart",null,"g sm")
+        : b("ابدئي اللعبة","oStart",null,"g bigbtn"))+
+      b("ابدئي من الأول","oRestart",null,"o sm")+
+      b("كتم مايك لاعب معين","go","muteList","o sm")
+    );
+  } else {
+    h += card("خيارات اللاعبين",
+      '<div class="small">أدوات اللعبة والرابط والبوت والكتم لمشرفة الطاولة بس. انتي عندك الميكروفون والخروج وقائمة اللاعبين.</div>'
+    );
+  }
+  h += b("غادري الطاولة","oLeave",null,"d bigbtn");
+  return h;
+};
+
+SCREENS.players = function(){
+  var room = S.online.room;
+  if (!room) return head("اللاعبين") + b("ارجعي للأونلاين","go","online","p");
+  var arr = rankList(room);
+  var h = head("قائمة اللاعبين");
+  var list = "";
+  for (var i=0;i<arr.length;i++){
+    var p = arr[i];
+    list += '<div class="kv"><span>'+(i+1)+'. '+p.n+(p.me?" (انتي)":"")+
+      '<div class="small">'+p.g+' — المايك '+(p.muted?"مكتوم":(p.mic?"شغال":"مقفول"))+'</div></span><b>'+p.score+'</b></div>';
+  }
+  h += card("الترتيب — مين مطعمه أكبر", list);
+  h += card("نصيحة", '<div class="small">النتيجة بتزيد لما تطبخي وتخدمي زبائن وتوصلي لمستويات أعلى. كبّري مطعمك أكتر من الباقي.</div>');
+  return h;
+};
+
+SCREENS.muteList = function(){
+  var room = S.online.room;
+  if (!room || !room.mine) return head("كتم المايك") + card("مش متاح", '<div class="small">كتم المايك لمشرفة الطاولة بس.</div>');
+  var h = head("كتم مايك لاعب");
+  if (!room.players.length) return h + card("مفيش لاعبين", '<div class="small">أضيفي بوت أو خلي حد ينضم الأول.</div>');
+  var list = "";
+  for (var i=0;i<room.players.length;i++){
+    var p = room.players[i];
+    list += '<div class="kv"><span>'+p.n+'<div class="small">'+(p.muted?"المايك مكتوم":"المايك شغال")+'</div></span>'+
+      b(p.muted?"شغّلي له المايك":"اكتمي مايكه","oMuteP",String(i),"sm")+'</div>';
+  }
+  return h + card("اللاعبين", list);
+};
+
+SCREENS.reqs = function(){
+  var o = S.online;
+  var h = head("طلبات الصداقة");
+  if (!o.reqs.length) return h + card("مفيش طلبات", '<div class="small">لما حد يبعتلك طلب هيظهر هنا.</div>');
+  var list = "";
+  for (var i=0;i<o.reqs.length;i++){
+    var r = o.reqs[i];
+    list += '<div class="card"><div class="kv"><span>'+r.n+'<div class="small">'+r.g+'</div></span><span class="tag o">طلب صداقة</span></div>'+
+      b("اقبلي الطلب","oReqOk",String(i),"g sm")+
+      b("ارفضي الطلب","oReqNo",String(i),"d sm")+
+      b("ابعتي رسالة","oReqMsg",String(i),"p sm")+
+      b("احظريها","oReqBlock",String(i),"d sm")+'</div>';
+  }
+  return h + list;
+};
+
+SCREENS.blocked = function(){
+  var o = S.online;
+  var h = head("قائمة المحظورين");
+  if (!o.blocked.length) return h + card("القائمة فاضية", '<div class="small">المحظور مش هيقدر ينضم لطاولتك ولا يبعتلك طلب.</div>');
+  var list = "";
+  for (var i=0;i<o.blocked.length;i++){
+    list += '<div class="kv"><span>'+o.blocked[i]+'</span>'+b("إلغاء الحظر","oUnblock",o.blocked[i],"sm")+'</div>';
+  }
+  return h + card("المحظورين", list);
+};
+
+SCREENS.chat = function(){
+  var o = S.online;
+  var h = head("الرسائل الصوتية");
+  var withName = o.chatWith || "صاحبتي";
+  h += card("محادثة مع "+withName,
+    '<div class="small">سجّلي رسالة صوتية وابعتيها، أو اسمعي رسائل صاحبتك.</div>'+
+    b(REC.on?"اقفي التسجيل":"سجّلي رسالة صوتية","oRec",null,REC.on?"d bigbtn":"p bigbtn")+
+    (REC.on ? '<div class="small">التسجيل شغال دلوقتي — اضغطي تاني عشان توقفي وتبعتي.</div>' : '')
+  );
+  var list = "";
+  for (var i=0;i<o.msgs.length;i++){
+    var m = o.msgs[i];
+    list += '<div class="kv"><span>'+(m.mine?"انتي":m.n)+'<div class="small">'+(m.audio?"رسالة صوتية "+(m.dur||0)+" ثانية":"رسالة صوتية"+(m.t?": "+m.t:""))+'</div></span>'+
+      b("اسمعي","oPlayMsg",String(i),"sm")+'</div>';
+  }
+  h += card("الرسائل", list || '<div class="small">مفيش رسائل لسه.</div>');
+  h += card("بدون تسجيل؟",
+    '<div class="small">لو الميكروفون مش متاح، اكتبي رسالتك والنظام هيقراها بصوت.</div>'+
+    '<input id="omsg" type="text" placeholder="اكتبي رسالة" aria-label="نص الرسالة">'+
+    b("ابعتي بالصوت","oSendMsg",null,"o sm")
   );
   return h;
 };
@@ -1122,7 +1462,8 @@ SCREENS.rewards = function(){
     S.day.gift ? '<span class="tag g">استلمتيه النهارده — تعالي بكرة</span>' : b("افتحي صندوق النهارده","dailyGift",null,"p bigbtn")
   );
   h += card("عجلة الحظ الكبرى",
-    S.day.wheel ? '<span class="tag g">لفّيتيها النهارده</span>' : b("لفّي العجلة","wheel",null,"g bigbtn")
+    '<div class="small">كل لفة بتجيب 10000 عملة و 5000 قلب — لفة واحدة كل يوم.</div>'+
+    (S.day.wheel ? '<span class="tag g">لفّيتيها النهارده — تعالي بكرة</span>' : b("لفّي العجلة","wheel",null,"g bigbtn"))
   );
   var wk = S.week;
   h += card("مهام الأسبوع الكبرى",
@@ -1523,9 +1864,10 @@ function act(a, arg, arg2){
     for (var t=0;t<S.tables.length;t++) if (!S.tables[t]){ free = t; break; }
     if (free < 0){ toast("كل الطاولات مشغولة"); return; }
     S.tables[free] = makeGuest(S.vipMode);
+    var g0 = S.tables[free];
     S.vipMode = false;
     sfx("bell");
-    say("وصلت زبونة على طاولة " + (free+1));
+    toast("دخلت زبونة اسمها " + g0.name + " على طاولة " + (free+1) + ". طلبت " + dishName(g0.food) + " ومعاها " + drinkName(g0.drink) + ". حضّري الطلب وبعدها اضغطي تقديم الطلب");
     fin(); return;
 
   case "vipNext":
@@ -1579,7 +1921,7 @@ function act(a, arg, arg2){
     if (S.reviews.length > 30) S.reviews.pop();
     S.tables[n] = null;
     give("xp",8);
-    toast("تمت الخدمة — " + money + " عملة في الكاشير");
+    toast("قدّمتِ الطلب! الزبونة " + gs.name + " قيّمت الأكل " + review.s + " من 5. دفعت " + money + " عملة في الكاشير وبعدها مشيت");
     fin(); return;
 
   case "kick":
@@ -1668,12 +2010,259 @@ function act(a, arg, arg2){
     fin(); return;
 
   case "cashier":
-    if (S.pending <= 0){ toast("مفيش أرباح مستنية"); return; }
-    var taken = S.pending;
+    go("cashier"); return;
+
+  case "cashCollect":
+    var totalCash = S.pending + S.cash.drawer;
+    if (totalCash <= 0){ toast("مفيش فلوس في الكاشير تستلميها"); return; }
     S.pending = 0;
-    give("coin", taken);
+    S.cash.drawer = 0;
+    S.cash.open = false;
+    give("coin", totalCash);
     sfx("coin");
-    toast("استلمتي " + taken + " عملة من الكاشير");
+    toast("تحسين الحسابات تم — استلمتي " + totalCash + " عملة. الدرج اتقفل");
+    fin(); return;
+
+  case "drawerOpen":
+    if (S.cash.open){ toast("الدرج مفتوح بالفعل"); return; }
+    S.cash.open = true;
+    sfx("click");
+    toast("الدرج مفتوح. حطي الفلوس أو رجّعي الباقي وبعدها اقفليه");
+    fin(); return;
+
+  case "drawerPut":
+    if (!S.cash.open){ toast("افتحي الدرج الأول"); return; }
+    if (S.pending <= 0){ toast("مفيش فلوس في الكاشير تحطيها"); return; }
+    var putCash = S.pending;
+    S.pending = 0;
+    S.cash.drawer += putCash;
+    sfx("coin");
+    toast("حطيتي " + putCash + " عملة في الدرج. الدرج فيه دلوقتي " + S.cash.drawer);
+    fin(); return;
+
+  case "drawerChange":
+    if (!S.cash.open){ toast("افتحي الدرج الأول"); return; }
+    go("change"); return;
+
+  case "drawerGive":
+    if (!S.cash.open){ toast("افتحي الدرج الأول"); return; }
+    var amtChange = n;
+    if (amtChange <= 0){ toast("مبلغ غير صحيح"); return; }
+    if (S.cash.drawer < amtChange){ toast("الدرج فيه " + S.cash.drawer + " عملة بس — مش كفاية للباقي ده"); return; }
+    S.cash.drawer -= amtChange;
+    S.cash.given += amtChange;
+    toast("سلّمتِ " + amtChange + " عملة باقي للزبون. اقفلي الدرج لما تخلصي");
+    fin(); return;
+
+  case "drawerClose":
+    if (!S.cash.open){ toast("الدرج مقفول بالفعل"); return; }
+    S.cash.open = false;
+    sfx("click");
+    toast("الدرج اتقفل");
+    fin(); return;
+
+  case "oName":
+    var newNick = inputVal("onick");
+    if (!newNick){ toast("اكتبي اسمك الأول"); return; }
+    S.online.nick = newNick;
+    if (S.online.room && S.online.room.mine) S.online.room.owner = newNick;
+    toast("تم حفظ الاسم — " + newNick);
+    fin(); return;
+
+  case "oGender":
+    S.online.gender = (S.online.gender === "بنت") ? "ولد" : "بنت";
+    toast("الجنس اتغير لـ " + S.online.gender);
+    fin(); return;
+
+  case "oPriv":
+    S.online.newPriv = !S.online.newPriv;
+    render(); return;
+
+  case "oCreate":
+    if (S.online.room){ toast("عندك طاولة مفتوحة بالفعل — اغادريها الأول"); return; }
+    var rname = inputVal("oroom") || ("مطعم " + S.online.nick);
+    var rpriv = !!S.online.newPriv;
+    var rpass = rpriv ? inputVal("opass") : "";
+    if (rpriv && !rpass){ toast("اكتبي كلمة مرور للطاولة الخاصة"); return; }
+    var newRoom = {id:"my"+Date.now(), name:rname, owner:S.online.nick, priv:rpriv, pass:rpass, open:true, linkOn:true, mic:true, chatOn:true, started:false, mine:true, bot:false, players:[]};
+    S.online.room = newRoom;
+    S.online.rooms.unshift(newRoom);
+    S.online.newPriv = false;
+    sfx("success");
+    toast("الطاولة " + rname + " اتفتحت — شاركي رابط الدعوة مع صاحباتك");
+    fin();
+    go("room"); return;
+
+  case "oJoin":
+    var jr = findRoom(arg);
+    if (!jr){ toast("الطاولة مش موجودة"); return; }
+    if (S.online.blocked.indexOf(jr.owner) >= 0){ toast("مش قادرة تنضمي لطاولة " + jr.owner + " — هي في قائمة المحظورين عندك"); return; }
+    if (S.online.room && S.online.room.id === jr.id){ go("room"); return; }
+    if (!jr.open){ toast("الطاولة مقفولة دلوقتي"); return; }
+    if (jr.players.length >= 12){ toast("الطاولة اتملت — 12 لاعب"); return; }
+    if (jr.priv){
+      S.online.joinId = jr.id;
+      S.online.joinErr = "";
+      render();
+      say("الطاولة " + jr.name + " خاصة. اكتبي كلمة المرور");
+      return;
+    }
+    joinRoom(jr); return;
+
+  case "oPassTry":
+    var pr = findRoom(arg);
+    if (!pr){ toast("الطاولة مش موجودة"); return; }
+    var given = inputVal("jpass");
+    if (!given){ S.online.joinErr = "اكتبي كلمة المرور الأول"; render(); return; }
+    if (given !== pr.pass){ S.online.joinErr = "كلمة المرور غلط — جربي تاني"; sfx("error"); say("كلمة المرور غلط. جربي تاني"); render(); return; }
+    joinRoom(pr); return;
+
+  case "oLeave":
+    if (!S.online.room){ toast("انتي مش في طاولة"); return; }
+    var leftName = S.online.room.name;
+    S.online.room = null;
+    S.online.joinId = "";
+    S.online.joinErr = "";
+    toast("غادرتي طاولة " + leftName);
+    go("online"); return;
+
+  case "oLink":
+    if (!S.online.room || !S.online.room.mine){ toast("الرابط لمشرفة الطاولة بس"); return; }
+    S.online.room.linkOn = !S.online.room.linkOn;
+    toast(S.online.room.linkOn ? "رابط الدعوة اتشغّل" : "رابط الدعوة اتوقف — محدش هيقدر ينضم بالرابط");
+    fin(); return;
+
+  case "oCopy":
+    if (!S.online.room){ toast("مفيش طاولة"); return; }
+    var invite = inviteCode(S.online.room);
+    try{ if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(invite); }catch(e){}
+    toast("رابط الدعوة: " + invite + " — بعتيه لصاحبتك");
+    fin(); return;
+
+  case "oBot":
+    var botRoom = S.online.room;
+    if (!botRoom || !botRoom.mine){ toast("البوت لمشرفة الطاولة بس"); return; }
+    if (botRoom.players.length >= 11){ toast("الطاولة اتملت"); return; }
+    var botNames = ["روبوت شيف","روبوت حلويات","روبوت عصير","روبوت مشاوي"];
+    var botName = botNames[botRoom.players.length % botNames.length] + " " + (botRoom.players.length + 1);
+    botRoom.players.push({n:botName, g:"بوت", mic:false, muted:false, bot:true, score:250 + Math.floor(Math.random()*500)});
+    botRoom.bot = true;
+    toast("البوت " + botName + " دخل الطاولة — قدامك تلعبي ضده");
+    fin(); return;
+
+  case "oStart":
+    var startRoom = S.online.room;
+    if (!startRoom || !startRoom.mine){ toast("بدء اللعبة لمشرفة الطاولة بس"); return; }
+    startRoom.started = true;
+    toast("اللعبة بدأت — كبّري مطعمك أكتر من الباقي");
+    fin(); return;
+
+  case "oStop":
+    var stopRoom = S.online.room;
+    if (!stopRoom || !stopRoom.mine){ toast("ايقاف اللعبة لمشرفة الطاولة بس"); return; }
+    stopRoom.started = false;
+    toast("اللعبة وقفت — النتايج زي ما هي");
+    fin(); return;
+
+  case "oRestart":
+    var reRoom = S.online.room;
+    if (!reRoom || !reRoom.mine){ toast("بدء اللعبة من الأول لمشرفة الطاولة بس"); return; }
+    for (var pi=0; pi<reRoom.players.length; pi++) reRoom.players[pi].score = 0;
+    reRoom.started = true;
+    sfx("bell");
+    toast("اللعبة بدأت من الأول — كل النتايج اتصفّرت");
+    fin(); return;
+
+  case "oMuteP":
+    var muteRoom = S.online.room;
+    if (!muteRoom || !muteRoom.mine){ toast("الكتم لمشرفة الطاولة بس"); return; }
+    var muteP = muteRoom.players[n];
+    if (!muteP){ toast("اللاعب مش موجود"); return; }
+    muteP.muted = !muteP.muted;
+    toast(muteP.muted ? "اتكتم مايك " + muteP.n : "اتفتح مايك " + muteP.n);
+    fin(); return;
+
+  case "oMic":
+    S.online.mic = !S.online.mic;
+    if (S.online.mic) toast("الميكروفون شغال — اللي في الطاولة سامعينك");
+    else toast("الميكروفون اتقفل");
+    fin(); return;
+
+  case "oChatWith":
+    S.online.chatWith = arg;
+    go("chat"); return;
+
+  case "oRec":
+    if (!requirePower()) return;
+    if (REC.on) recStop();
+    else recStart();
+    return;
+
+  case "oSendMsg":
+    var msgTxt = inputVal("omsg");
+    if (!msgTxt){ toast("اكتبي رسالة الأول"); return; }
+    S.online.msgs.push({n:S.online.nick, mine:true, audio:"", t:msgTxt});
+    toast("اتبعتت رسالتك — صاحبتك هتسمعها بالصوت");
+    fin(); return;
+
+  case "oPlayMsg":
+    var msg = S.online.msgs[n];
+    if (!msg){ toast("الرسالة مش موجودة"); return; }
+    if (msg.audio){
+      try{
+        var audioEl = new Audio(msg.audio);
+        audioEl.play();
+        toast("بشغّل رسالة " + (msg.mine ? "انتي" : msg.n));
+        return;
+      }catch(e){}
+    }
+    if (msg.t){ toast("رسالة من " + (msg.mine ? "انتي" : msg.n) + ": " + msg.t); return; }
+    toast("الرسالة الصوتية دي مش محفوظة بعد ما قفلتي اللعبة");
+    return;
+
+  case "oReqOk":
+    var okReq = S.online.reqs[n];
+    if (!okReq){ toast("الطلب مش موجود"); return; }
+    S.online.friends.push({n:okReq.n, g:okReq.g});
+    S.online.reqs.splice(n, 1);
+    sfx("success");
+    toast("قبلتي طلب " + okReq.n + " — بقت في صديقاتك");
+    fin(); return;
+
+  case "oReqNo":
+    var noReq = S.online.reqs[n];
+    if (!noReq){ toast("الطلب مش موجود"); return; }
+    S.online.reqs.splice(n, 1);
+    toast("رفضتي طلب " + noReq.n);
+    fin(); return;
+
+  case "oReqMsg":
+    var msgReq = S.online.reqs[n];
+    if (!msgReq){ toast("الطلب مش موجود"); return; }
+    S.online.chatWith = msgReq.n;
+    go("chat"); return;
+
+  case "oReqBlock":
+    var blkReq = S.online.reqs[n];
+    if (!blkReq){ toast("الطلب مش موجود"); return; }
+    S.online.reqs.splice(n, 1);
+    if (S.online.blocked.indexOf(blkReq.n) < 0) S.online.blocked.push(blkReq.n);
+    toast("حظرتي " + blkReq.n + " — مش هتقدر تنضم لطاولتك ولا تبعتلك طلب");
+    fin(); return;
+
+  case "oBlock":
+    if (S.online.blocked.indexOf(arg) < 0) S.online.blocked.push(arg);
+    for (var fi=0; fi<S.online.friends.length; fi++){
+      if (S.online.friends[fi].n === arg){ S.online.friends.splice(fi, 1); break; }
+    }
+    toast("حظرتي " + arg + " — مش هتقدر تنضم لطاولتك");
+    fin(); return;
+
+  case "oUnblock":
+    var ubIdx = S.online.blocked.indexOf(arg);
+    if (ubIdx < 0){ toast("مش في قائمة المحظورين"); return; }
+    S.online.blocked.splice(ubIdx, 1);
+    toast("اتلغى حظر " + arg);
     fin(); return;
 
   case "opening":
@@ -2119,15 +2708,12 @@ function act(a, arg, arg2){
     fin(); return;
 
   case "wheel":
-    if (S.day.wheel){ toast("لفّيتي العجلة النهارده"); return; }
+    if (S.day.wheel){ toast("لفّيتي العجلة النهارده — لفة واحدة كل يوم، تعالي بكرة"); return; }
     S.day.wheel = true;
-    var prizes = [ {k:"coin",v:80}, {k:"coin",v:150}, {k:"star",v:1}, {k:"heart",v:1}, {k:"coin",v:40}, {k:"star",v:2} ];
-    var pz = pick(prizes);
-    if (pz.k === "coin") give("coin", pz.v);
-    else if (pz.k === "heart") give("heart", pz.v);
-    else S.star += pz.v;
+    give("coin", 10000);
+    give("heart", 5000);
     sfx("wheel");
-    toast("العجلة وقفت على: " + (pz.k==="coin"?pz.v+" عملة":(pz.k==="star"?pz.v+" نجمة":"قلب حب")));
+    toast("مبروك! عجلة الحظ جابت لك 10000 عملة و 5000 قلب ❤️");
     fin(); return;
 
   case "weekClaim":

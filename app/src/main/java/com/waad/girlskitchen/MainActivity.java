@@ -1,8 +1,10 @@
 package com.waad.girlskitchen;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Vibrator;
@@ -10,6 +12,8 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -18,8 +22,11 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
 
+    private static final int REQ_MIC = 101;
+
     private WebView web;
     private TextToSpeech tts;
+    private PermissionRequest pendingPermission;
     private boolean ttsReady = false;
     private final Locale ttsLocale = new Locale("ar");
 
@@ -47,6 +54,24 @@ public class MainActivity extends Activity {
                     return true;
                 }
                 return false;
+            }
+        });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    boolean wantsAudio = false;
+                    for (String res : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(res)) wantsAudio = true;
+                    }
+                    if (!wantsAudio) { request.deny(); return; }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        pendingPermission = request;
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+                    }
+                });
             }
         });
         web.addJavascriptInterface(new Bridge(), "Native");
@@ -106,6 +131,19 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean ttsAvailable() { return ttsReady; }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_MIC && pendingPermission != null) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                pendingPermission.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                pendingPermission.deny();
+            }
+            pendingPermission = null;
+        }
     }
 
     @Override
