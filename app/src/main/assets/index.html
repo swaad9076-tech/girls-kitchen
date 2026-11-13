@@ -69,7 +69,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
-var APP_VER = "1.7";
+var APP_VER = "1.8";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
 var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
 var DISHES = [
@@ -148,6 +148,47 @@ function inputVal(id){
 }
 function myScore(){
   return S.level*100 + S.served*10 + Math.floor(S.totalEarned/40) + S.star*5;
+}
+function normName(x){ return String(x || "").trim().toLowerCase().replace(/\s+/g, " "); }
+function friendEntry(f){
+  if (!f) return null;
+  var now = Date.now();
+  if (f.id && NET.lb[f.id] && now - (NET.lb[f.id].ts || 0) < 90000) return NET.lb[f.id];
+  var want = normName(f.n);
+  for (var id in NET.lb){
+    var e = NET.lb[id];
+    if (!e || !e.n) continue;
+    if (now - (e.ts || 0) > 90000) continue;
+    if (normName(e.n) === want) return e;
+  }
+  return null;
+}
+function friendLastSeen(f){
+  if (!f) return 0;
+  if (f.id && NET.lb[f.id]) return NET.lb[f.id].ts || 0;
+  var want = normName(f.n), best = 0;
+  for (var id in NET.lb){
+    var e = NET.lb[id];
+    if (!e || !e.n) continue;
+    if (normName(e.n) === want && (e.ts || 0) > best) best = e.ts || 0;
+  }
+  return best;
+}
+function friendsOnlineCount(){
+  var n = 0;
+  for (var i = 0; i < S.online.friends.length; i++) if (friendEntry(S.online.friends[i])) n++;
+  return n;
+}
+function friendRoomOf(f){
+  if (!f) return null;
+  var want = normName(f.n), now = Date.now();
+  for (var k in NET.rooms){
+    var r = NET.rooms[k];
+    if (!r || !r.open) continue;
+    if (now - (r.ts || 0) > 180000) continue;
+    if (normName(r.owner) === want) return r;
+  }
+  return null;
 }
 function lbRows(includeSeeds){
   var rows = [], seen = {};
@@ -615,7 +656,8 @@ var HELP = {
   cashier:"الكاشير. تحطي الفلوس في الدرج وتاخدي الباقي.",
   room:"الطاولة الأونلاين. المايك دايمًا فوق قصادك، وكل حاجة تانية جوه الطاولة.",
   wardrobe:"الدولاب. تختاري هدومك وشكلك.",
-  minigames:"الألعاب الصغيرة. كل لعبة ليها شرح صوتي لما تدخليها."
+  minigames:"الألعاب الصغيرة. كل لعبة ليها شرح صوتي لما تدخليها.",
+  friends:"الأصدقاء. كل صديقاتك وحالة كل واحدة: متصلة دلوقتي ولا لأ، ونتيجتها، وزرار تفتحي ملفها أو تبعتيلها رسالة. الحالة بتتحدث لوحدها."
 };
 function screenHelp(id){
   if (S.readerMode) return;
@@ -848,7 +890,7 @@ function netRender(){
   var a = document.activeElement;
   if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA")) return;
   _nrAt = now;
-  if (cur === "online" || cur === "room" || cur === "players" || cur === "leaderboard" || cur === "muteList" || cur === "chat") render();
+  if (cur === "online" || cur === "room" || cur === "players" || cur === "leaderboard" || cur === "muteList" || cur === "chat" || cur === "friends") render();
 }
 
 /* ===== الحالة ===== */
@@ -1224,6 +1266,7 @@ SCREENS.home = function(){
   h += '<div class="card"><div class="ct" role="heading" aria-level="2">البحث واللاعبات</div>'+
        '<div class="small">دوّري على أي لاعبة بالاسم، افتحي ملفها، وابعتيلها طلب صداقة أو رسالة.</div>'+
        b("بحث عن لاعبة","go","find","g bigbtn")+
+       b("الأصدقاء — مين متصل دلوقتي","go","friends","o bigbtn")+
        '</div>';
   h += '<div class="card" style="background:#fff7e2"><div class="ct">عجلة الحظ</div>'+
        '<div class="small">10000 عملة و 5000 قلب — لفة واحدة كل يوم.</div>'+
@@ -2210,6 +2253,11 @@ SCREENS.online = function(){
     }
     h += card("الطاولات المفتوحة", list || '<div class="small">مفيش طاولات مفتوحة دلوقتي.</div>');
   }
+  h += card("الأصدقاء",
+    '<div class="kv"><span>صديقاتي</span><b>'+o.friends.length+'</b></div>'+
+    '<div class="kv"><span>متصلين دلوقتي</span><b>'+friendsOnlineCount()+'</b></div>'+
+    b("افتحي قائمة الأصدقاء","go","friends","p bigbtn")
+  );
   h += card("الإشعارات",
     '<div class="kv"><span>طلبات صداقة جديدة</span><b>'+o.reqs.length+'</b></div>'+
     b("شوفي الطلبات","go","reqs","p sm")+
@@ -2254,7 +2302,8 @@ SCREENS.profile = function(){
     fr += '<div class="kv"><span>'+ff.n+'<div class="small">'+ff.g+(ff.id?" — متصلة":" — بالاسم")+'</div></span></div>'+
       '<div class="row">'+b("ملفها","oView",fk,"p sm")+b("رسالة","oChatWith",fk,"o sm")+b("حظر","oBlock",ff.n,"d sm")+'</div>';
   }
-  h += card("صديقاتي", fr || '<div class="small">لسه مفيش صديقات.</div>');
+  h += card("صديقاتي", (fr || '<div class="small">لسه مفيش صديقات.</div>')+
+    b("كل الأصدقاء وحالتهم","go","friends","p sm"));
   h += card("المحظورين",
     '<div class="small">المحظور مش هيقدر ينضم لطاولتك ولا يبعتلك طلب.</div>'+
     b("قائمة المحظورين","go","blocked","sm")
@@ -2518,6 +2567,54 @@ SCREENS.muteList = function(){
       b(items[k].muted?"شغّلي له المايك":"اكتمي مايكه","oMuteP",items[k].key,"sm")+'</div>';
   }
   return h + card("اللاعبين", list);
+};
+
+SCREENS.friends = function(){
+  var o = S.online;
+  var h = head("الأصدقاء");
+  var on = friendsOnlineCount();
+  h += card("الحالة",
+    '<div class="kv"><span>عدد صديقاتك</span><b>'+o.friends.length+'</b></div>'+
+    '<div class="kv"><span>متصلين دلوقتي</span><b>'+on+'</b></div>'+
+    '<div class="kv"><span>مش متصلين</span><b>'+(o.friends.length - on)+'</b></div>'+
+    '<div class="small">'+(NET.state === "on"
+      ? "الحالة بتتحدث لوحدها. لو صاحبتك فتحت اللعبة ومتصلة بالنت هتظهر متصلة في خلال دقيقة."
+      : "انتي مش متصلة بالقناة دلوقتي، فمش هتقدري تشوفي مين متصل. افتحي قسم الأونلاين الأول.")+'</div>'+
+    b("حدّثي الحالة","refreshFriends",null,"p sm")
+  );
+  if (!o.friends.length){
+    h += card("لسه مفيش صديقات",
+      '<div class="small">دوّري على لاعبة بالاسم وابعتيلها طلب صداقة، ولما تقبل هتظهر هنا.</div>'+
+      b("بحث بالاسم","go","find","g bigbtn"));
+    return h;
+  }
+  var list = o.friends.slice(0);
+  list.sort(function(a,b){
+    var ea = friendEntry(a) ? 1 : 0, eb = friendEntry(b) ? 1 : 0;
+    if (ea !== eb) return eb - ea;
+    return friendLastSeen(b) - friendLastSeen(a);
+  });
+  for (var i = 0; i < list.length; i++){
+    var f = list[i];
+    var e = friendEntry(f);
+    var fk = f.id || ("n:" + f.n);
+    var last = friendLastSeen(f);
+    var rm = friendRoomOf(f);
+    var st;
+    if (e) st = "متصلة دلوقتي — نتيجتها " + fmtNum(e.s || 0);
+    else if (last) st = "مش متصلة — آخر مرة كانت متصلة " + timeAgo(last);
+    else st = "مش متصلة — مش ظاهرة على القناة";
+    var body = '<div class="kv"><span>الحالة</span><b>'+(e ? "متصلة" : "مش متصلة")+'</b></div>'+
+      '<div class="small">'+st+'</div>'+
+      '<div class="row">'+b("ملفها","oView",fk,"p sm")+b("ابعتيلها رسالة","oChatWith",fk,"o sm")+'</div>';
+    if (rm) body += b("طاولتها مفتوحة — ادخلي " + rm.name, "oJoinLive", rm.code, "g bigbtn");
+    h += card(f.n, body);
+  }
+  h += card("الملحوظة",
+    '<div class="small">معرفة مين متصل بتعتمد على إن اللعبة مفتوحة عندها ومتصلة بالنت. لو قفلت اللعبة هتظهر مش متصلة، وده طبيعي.</div>'+
+    b(" راجعي طلبات الصداقة","go","reqs","o sm")
+  );
+  return h;
 };
 
 SCREENS.reqs = function(){
@@ -3909,6 +4006,11 @@ function act(a, arg, arg2){
 
   case "update":
     openUpdate(); return;
+
+  case "refreshFriends":
+    if (NET.state === "on") netPublishLb();
+    toast("اتحدثت الحالة");
+    fin(); return;
 
   case "micTest":
     micTest(); return;
