@@ -24,7 +24,9 @@ jobs:
 
       - name: Read version
         id: ver
-        run: echo "v=$(grep -o 'versionName \"[^\"]*' app/build.gradle | head -1 | cut -d'\"' -f2)" >> $GITHUB_OUTPUT
+        run: |
+          V=$(sed -n 's/.*versionName "\(.*\)"/\1/p' app/build.gradle | head -1)
+          echo "v=$V" >> $GITHUB_OUTPUT
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
