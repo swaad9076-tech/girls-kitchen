@@ -22,6 +22,10 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Read version
+        id: ver
+        run: echo "v=$(grep -o 'versionName \"[^\"]*' app/build.gradle | head -1 | cut -d'\"' -f2)" >> $GITHUB_OUTPUT
+
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
 
@@ -30,7 +34,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "مطبخ البنات — latest build"
+          name: "مطبخ البنات v${{ steps.ver.outputs.v }} — latest build"
           body: "Last built from ${{ github.sha }}"
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
