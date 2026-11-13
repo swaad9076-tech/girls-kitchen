@@ -59,6 +59,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 <body>
 <div id="app"></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="js/mqtt.min.js"></script>
 <script>
 "use strict";
 
@@ -132,12 +133,43 @@ function seedReqs(){
 function seedMsgs(){
   return [{n:"سارة", t:"وحشتيني يا وعد! مطعمك كبر ولا إيه؟", mine:false, audio:""}];
 }
+var LB_SEEDS = [
+  {n:"مريم", s:780}, {n:"سارة", s:640}, {n:"جنى", s:560},
+  {n:"ريم", s:470}, {n:"نور", s:380}, {n:"هنا", s:300}, {n:"ملك", s:220}
+];
 function inputVal(id){
   var e = document.getElementById(id);
   return e && e.value ? String(e.value).trim() : "";
 }
 function myScore(){
   return S.level*100 + S.served*10 + Math.floor(S.totalEarned/40) + S.star*5;
+}
+function lbRows(includeSeeds){
+  var rows = [], seen = {};
+  rows.push({n:S.online.nick, s:myScore(), me:true});
+  seen[S.online.nick] = 1;
+  for (var id in NET.lb){
+    var e = NET.lb[id];
+    if (!e || !e.n || id === NET.id) continue;
+    if (Date.now() - (e.ts || 0) > 86400000) continue;
+    if (seen[e.n]) continue;
+    seen[e.n] = 1;
+    rows.push({n:e.n, g:e.g || "بنت", s:e.s || 0, me:false});
+  }
+  if (includeSeeds){
+    for (var i=0;i<LB_SEEDS.length;i++){
+      if (seen[LB_SEEDS[i].n]) continue;
+      seen[LB_SEEDS[i].n] = 1;
+      rows.push({n:LB_SEEDS[i].n, g:"بنت", s:LB_SEEDS[i].s, me:false});
+    }
+  }
+  rows.sort(function(a,b){ return b.s - a.s; });
+  return rows;
+}
+function myRank(){
+  var rows = lbRows(NET.state !== "on");
+  for (var i=0;i<rows.length;i++) if (rows[i].me) return i + 1;
+  return rows.length;
 }
 function onlineRoom(){
   return S.online.room;
@@ -154,6 +186,225 @@ function joinRoom(r){
   sfx("click");
   toast("دخلتي طاولة " + r.name + " — صاحبتها " + r.owner);
   go("room");
+}
+
+/* ===== 23. القناة المجانية بين الموبايلات ===== */
+var MQ_URL = "wss://broker.emqx.io:8084/mqtt";
+var TOPIC = "waadkitchen/v1/gk/";
+var NET = {c:null, state:"off", id:"", rooms:{}, peers:{}, lb:{}, joined:"", timer:null, _lbAt:0};
+
+function hashPass(s){
+  var h = 5381;
+  for (var i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+function randCode(len){
+  var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", out = "";
+  for (var i=0;i<len;i++) out += chars.charAt(Math.floor(Math.random()*chars.length));
+  return out;
+}
+function netCid(){
+  try{
+    if (!S.net) S.net = {};
+    if (S.net.cid) return S.net.cid;
+    var s = "gk" + Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,6);
+    S.net.cid = s;
+    save();
+    return s;
+  }catch(e){ return "gk" + Math.random().toString(36).slice(2,10); }
+}
+function netPublish(topic, obj){
+  try{ if (NET.c && NET.c.connected) NET.c.publish(TOPIC + topic, JSON.stringify(obj), {qos:0, retain:false}); }catch(e){}
+}
+function netPublishRetain(topic, obj){
+  try{ if (NET.c && NET.c.connected) NET.c.publish(TOPIC + topic, JSON.stringify(obj), {qos:0, retain:true}); }catch(e){}
+}
+function netClearRetain(topic){
+  try{ if (NET.c && NET.c.connected) NET.c.publish(TOPIC + topic, "", {qos:0, retain:true}); }catch(e){}
+}
+function netSub(topic){ try{ if (NET.c) NET.c.subscribe(TOPIC + topic); }catch(e){} }
+
+function netInit(){
+  if (NET.c) return;
+  if (typeof mqtt === "undefined"){ NET.state = "unavailable"; return; }
+  NET.id = netCid();
+  NET.state = "connecting";
+  try{
+    NET.c = mqtt.connect(MQ_URL, {clientId: NET.id, clean:true, reconnectPeriod:6000, connectTimeout:12000, keepalive:30});
+  }catch(e){ NET.state = "unavailable"; return; }
+  NET.c.on("connect", function(){
+    NET.state = "on";
+    netSub("rooms/+/meta");
+    netSub("lb/+");
+    if (S.online.room && S.online.room.mine){
+      if (!S.online.room.code) S.online.room.code = randCode(5);
+      S.online.room.live = true;
+      nameJoin(S.online.room.code);
+      netAnnounceRoom();
+    } else if (S.online.room && S.online.room.live && S.online.room.code){
+      nameJoin(S.online.room.code);
+    }
+    netPublishLb();
+    if (cur === "online" || cur === "room" || cur === "leaderboard") render();
+  });
+  NET.c.on("close", function(){ if (NET.state === "on"){ NET.state = "off"; netRender(); } });
+  NET.c.on("error", function(){ NET.state = "off"; });
+  NET.c.on("message", function(t, p){ try{ netMessage(t, JSON.parse(String(p))); }catch(e){} });
+  if (!NET.timer) NET.timer = setInterval(netTick, 6000);
+}
+
+function netTick(){
+  if (NET.state !== "on") return;
+  if (NET.joined){
+    netPublish("rooms/" + NET.joined + "/presence", {t:"hb", id:NET.id, n:S.online.nick, g:S.online.gender, s:myScore(), mic:!!S.online.mic});
+    var ch = false, now = Date.now();
+    for (var k in NET.peers){
+      if (now - NET.peers[k].last > 30000){ delete NET.peers[k]; ch = true; }
+    }
+    if (ch) netRender();
+  }
+  if (S.online.room && S.online.room.mine) netAnnounceRoom();
+  if (Date.now() - NET._lbAt > 30000) netPublishLb();
+}
+
+function netAnnounceRoom(){
+  var r = S.online.room;
+  if (!r || !r.mine) return;
+  if (!r.code) r.code = randCode(5);
+  var bots = [];
+  for (var i=0;i<r.players.length;i++){
+    var p = r.players[i];
+    bots.push({n:p.n, g:p.g, s:p.score||0});
+  }
+  netPublishRetain("rooms/" + r.code + "/meta", {
+    code:r.code, name:r.name, owner:S.online.nick, host:NET.id,
+    priv:!!r.priv, ph:(r.pass ? hashPass(r.pass) : ""), open:!!r.open,
+    started:!!r.started, bots:bots, ts:Date.now()
+  });
+}
+function netCloseRoom(){
+  var r = S.online.room;
+  if (r && r.mine && r.code) netClearRetain("rooms/" + r.code + "/meta");
+}
+function netPublishLb(){
+  NET._lbAt = Date.now();
+  netPublishRetain("lb/" + NET.id, {n:S.online.nick, g:S.online.gender, s:myScore(), ts:Date.now()});
+}
+function netEnter(code){
+  NET.joined = code;
+  NET.peers = {};
+  netSub("rooms/" + code + "/presence");
+  netSub("rooms/" + code + "/chat");
+  netSub("rooms/" + code + "/ctl");
+  netPublish("rooms/" + code + "/presence", {t:"join", id:NET.id, n:S.online.nick, g:S.online.gender, s:myScore(), mic:!!S.online.mic});
+}
+function nameJoin(code){ netEnter(code); }
+function netLeave(){
+  if (!NET.joined) return;
+  netPublish("rooms/" + NET.joined + "/presence", {t:"leave", id:NET.id, n:S.online.nick});
+  NET.joined = "";
+  NET.peers = {};
+}
+
+function netMessage(t, m){
+  if (!t || t.indexOf(TOPIC) !== 0 || !m) return;
+  var parts = t.slice(TOPIC.length).split("/");
+  if (parts[0] === "lb"){
+    var lid = parts[1];
+    if (!m.n){ delete NET.lb[lid]; return; }
+    m.ts = m.ts || Date.now();
+    NET.lb[lid] = m;
+    if (cur === "leaderboard") netRender();
+    return;
+  }
+  if (parts[0] !== "rooms") return;
+  var code = parts[1], kind = parts[2];
+  if (kind === "meta"){
+    if (!m.code || !m.ts || Date.now() - m.ts > 180000){ delete NET.rooms[code]; return; }
+    NET.rooms[code] = m;
+    netRender();
+    return;
+  }
+  if (code !== NET.joined) return;
+  if (kind === "presence") netPresence(m);
+  else if (kind === "chat") netChat(m);
+  else if (kind === "ctl") netCtl(m);
+}
+
+function netPresence(m){
+  if (!m || !m.id || m.id === NET.id) return;
+  if (m.t === "leave"){
+    if (NET.peers[m.id]){ delete NET.peers[m.id]; netRender(); }
+    return;
+  }
+  NET.peers[m.id] = {n:m.n || "لاعبة", g:m.g || "بنت", s:m.s || 0, mic:!!m.mic, muted:!!m.muted, last:Date.now()};
+  netRender();
+}
+
+function netChat(m){
+  if (!m || m.id === NET.id) return;
+  S.online.msgs.push({n:m.n || "صاحبتي", mine:false, audio:m.a || "", dur:m.d || 0, t:m.t || ""});
+  if (S.online.msgs.length > 40) S.online.msgs.shift();
+  save();
+  toast("رسالة جديدة من " + (m.n || "صاحبتك"));
+  if (cur === "chat") render();
+}
+
+function netCtl(m){
+  var room = S.online.room;
+  if (!room || !room.live) return;
+  if (m.t === "start"){ room.started = true; toast("المشرفة بدأت اللعبة"); }
+  else if (m.t === "stop"){ room.started = false; toast("المشرفة وقفت اللعبة"); }
+  else if (m.t === "restart"){ room.started = true; toast("اللعبة بدأت من الأول"); }
+  else if (m.t === "close"){ toast("المشرفة قفلت الطاولة"); exitLive(); return; }
+  else if (m.t === "mute" && m.id === NET.id){ S.online.mic = false; toast("المشرفة كتمت المايك بتاعك"); }
+  else if (m.t === "kick" && m.id === NET.id){ toast("المشرفة طلعتك من الطاولة"); exitLive(); return; }
+  netRender();
+}
+
+function liveTables(){
+  var out = [], now = Date.now();
+  for (var k in NET.rooms){
+    var m = NET.rooms[k];
+    if (!m || !m.code || !m.open) continue;
+    if (now - (m.ts || 0) > 180000) continue;
+    if (S.online.blocked.indexOf(m.owner) >= 0) continue;
+    out.push(m);
+  }
+  out.sort(function(a,b){ return (b.ts || 0) - (a.ts || 0); });
+  return out;
+}
+function livePlayersCount(m){
+  return 1 + (m.bots ? m.bots.length : 0);
+}
+function enterLive(m){
+  if (S.online.room && S.online.room.mine) netCloseRoom();
+  S.online.room = {
+    id:m.code, code:m.code, name:m.name, owner:m.owner, host:m.host,
+    priv:!!m.priv, pass:"", open:true, live:true, started:!!m.started,
+    mine:(m.host === NET.id), players:[], linkOn:true, mic:true, chatOn:true, bot:false
+  };
+  netEnter(m.code);
+  sfx("click");
+  toast("دخلتي طاولة " + m.name + " — صاحبتها " + m.owner);
+  go("room");
+}
+function exitLive(){
+  netLeave();
+  S.online.room = null;
+  S.online.joinId = "";
+  S.online.joinErr = "";
+  if (cur === "room" || cur === "players" || cur === "muteList") go("online");
+}
+
+var _nrAt = 0;
+function netRender(){
+  var now = Date.now();
+  if (now - _nrAt < 1200) return;
+  var a = document.activeElement;
+  if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA")) return;
+  _nrAt = now;
+  if (cur === "online" || cur === "room" || cur === "players" || cur === "leaderboard" || cur === "muteList" || cur === "chat") render();
 }
 
 /* ===== الحالة ===== */
@@ -180,7 +431,8 @@ function defState(){
     gifts:{given:0, souvenirs:0, loved:0},
     garden:{tomatoAt:0, herbAt:0, watered:false},
     recycleMat:0, recycle:{decor:0,vases:0,candles:0},
-    online:{hosted:0, wins:0, nick:"وعد", gender:"بنت", room:null, rooms:seedRooms(), joinId:"", joinErr:"", newPriv:false, reqs:seedReqs(), friends:[{n:"سارة",g:"بنت"},{n:"نور",g:"بنت"}], blocked:[], msgs:seedMsgs(), chatWith:""},
+    online:{hosted:0, wins:0, nick:"وعد", gender:"بنت", mic:true, room:null, rooms:seedRooms(), joinId:"", joinLive:"", joinErr:"", newPriv:false, reqs:seedReqs(), friends:[{n:"سارة",g:"بنت"},{n:"نور",g:"بنت"}], blocked:[], msgs:seedMsgs(), chatWith:""},
+    net:{cid:""},
     cash:{open:false, drawer:0, given:0},
     weatherDay:"", weather:"مشمس", umbrellas:false, winter:false,
     day:{date:"", gift:false, wheel:false, cook:0, serve:0, claims:[]},
@@ -381,6 +633,7 @@ var SECTIONS = [
   {id:"chall", n:"التحديات والمسابقات", g:"الفعاليات"},
   {id:"minigames", n:"الألعاب المصغرة", g:"الفعاليات"},
   {id:"online", n:"اللعب الجماعي", g:"الفعاليات"},
+  {id:"leaderboard", n:"قائمة المتصدرين", g:"الفعاليات"},
   {id:"parties", n:"الحفلات والمناسبات", g:"الفعاليات"},
   {id:"pets", n:"الحيوانات الأليفة", g:"الفعاليات"},
   {id:"garden", n:"الحديقة الزراعية", g:"الفعاليات"},
@@ -1170,13 +1423,30 @@ function recStart(){
   navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
     REC.stream = st;
     REC.chunks = [];
-    REC.mr = new MediaRecorder(st);
+    try{ REC.mr = new MediaRecorder(st, {mimeType:"audio/webm;codecs=opus", audioBitsPerSecond:16000}); }
+    catch(e){ REC.mr = new MediaRecorder(st); }
     REC.mr.ondataavailable = function(e){ if (e.data && e.data.size) REC.chunks.push(e.data); };
     REC.mr.onstop = function(){
       var secs = Math.max(1, Math.round((Date.now() - REC.t0)/1000));
-      var url = "";
-      try{ url = URL.createObjectURL(new Blob(REC.chunks, {type:"audio/webm"})); }catch(e){}
+      var url = "", blob = null;
+      try{
+        blob = new Blob(REC.chunks, {type:"audio/webm"});
+        url = URL.createObjectURL(blob);
+      }catch(e){}
       S.online.msgs.push({n:S.online.nick, mine:true, audio:url, dur:secs, t:""});
+      if (blob && NET.joined){
+        if (blob.size <= 120000){
+          try{
+            var fr = new FileReader();
+            fr.onload = function(){
+              try{ netPublish("rooms/" + NET.joined + "/chat", {id:NET.id, n:S.online.nick, a:String(fr.result || ""), d:secs, t:""}); }catch(e){}
+            };
+            fr.readAsDataURL(blob);
+          }catch(e){}
+        } else {
+          toast("الرسالة الصوتية كبيرة على القناة — جربي تسجيل أقصر");
+        }
+      }
       try{ if (REC.stream) REC.stream.getTracks().forEach(function(tr){ tr.stop(); }); }catch(e){}
       REC.stream = null; REC.mr = null; REC.on = false;
       save();
@@ -1207,18 +1477,36 @@ function inviteCode(room){
 }
 function rankList(room){
   var arr = [];
+  if (room.live){
+    for (var id in NET.peers){
+      var q = NET.peers[id];
+      arr.push({key:id, n:q.n, g:q.g, mic:q.mic, muted:q.muted, bot:false, me:false, score:q.s||0});
+    }
+  }
   for (var i=0;i<room.players.length;i++){
     var p = room.players[i];
-    arr.push({n:p.n, g:p.g, mic:p.mic, muted:p.muted, bot:!!p.bot, me:false, score:p.score||0});
+    arr.push({key:String(i), n:p.n, g:p.g, mic:p.mic, muted:p.muted, bot:!!p.bot, me:false, score:p.score||0});
   }
-  arr.push({n:S.online.nick, g:S.online.gender, mic:S.online.mic, muted:false, me:true, score:myScore()});
+  arr.push({key:"me", n:S.online.nick, g:S.online.gender, mic:S.online.mic, muted:false, me:true, score:myScore()});
   arr.sort(function(a,b){ return b.score - a.score; });
   return arr;
+}
+function roomPeopleCount(room){
+  if (room.live) return Object.keys(NET.peers).length + 1;
+  return room.players.length;
 }
 
 SCREENS.online = function(){
   var o = S.online;
   var h = head("قسم الأونلاين");
+  var stTxt = NET.state === "on"
+    ? "متصل بالقناة المجانية — الطاولات والنتايج بتتحدث لحظياً"
+    : (NET.state === "connecting" ? "بيتصل بالقناة المجانية…" : "القناة المجانية مش متاحة دلوقتي — الوضع المحلي شغال عادي");
+  h += card("القناة المجانية",
+    '<div class="small">'+stTxt+'</div>'+
+    '<div class="kv"><span>ترتيبك بين اللاعبين</span><b>#'+myRank()+'</b></div>'+
+    b("قائمة المتصدرين","go","leaderboard","p sm")
+  );
   h += card("ملفي الشخصي",
     '<div class="kv"><span>الاسم</span><b>'+o.nick+'</b></div>'+
     '<div class="kv"><span>الجنس</span><b>'+o.gender+'</b></div>'+
@@ -1227,28 +1515,47 @@ SCREENS.online = function(){
   h += card("طاولتي",
     o.room
       ? '<div class="kv"><span>'+o.room.name+'</span><b>'+(o.room.priv?"خاصة":"عامة")+'</b></div>'+
-        '<div class="kv"><span>اللاعبين</span><b>'+o.room.players.length+' / 12</b></div>'+
+        '<div class="kv"><span>اللاعبين</span><b>'+roomPeopleCount(o.room)+' / 12</b></div>'+
+        (o.room.code ? '<div class="small">كود الطاولة: '+o.room.code+'</div>' : '')+
         b("ارجعي للطاولة","go","room","g bigbtn")
       : '<div class="small">مفيش طاولة مفتوحة باسمك. اعملي طاولة واللاعبات ينضموا ليكي — الطاولة بتشيل لحد 12 لاعب.</div>'+
         b("إنشاء طاولة","go","createRoom","g bigbtn")
   );
   var list = "";
-  for (var i=0;i<o.rooms.length;i++){
-    var r = o.rooms[i];
-    if (!r.open) continue;
-    if (o.blocked.indexOf(r.owner) >= 0) continue;
-    var joined = o.room && o.room.id === r.id;
-    list += '<div class="kv"><span>'+r.name+'<div class="small">صاحبتها '+r.owner+' — '+r.players.length+' لاعبين</div></span>'+
-      (r.priv?'<span class="tag o">خاصة</span>':'<span class="tag g">عامة</span>')+'</div>'+
-      (joined ? '<span class="tag g">انتي جواها</span>' : b("انضمي لطاولة "+r.name,"oJoin",r.id,"sm"));
-    if (o.joinId === r.id && !joined){
-      list += '<div class="card" style="background:#fff6ec"><div class="small">الطاولة خاصة — اكتبي كلمة المرور:</div>'+
-        '<input id="jpass" type="password" placeholder="كلمة المرور" aria-label="كلمة مرور الطاولة">'+
-        b("ادخلي بالكلمة","oPassTry",r.id,"p sm")+
-        (o.joinErr?'<div class="small" style="color:#b03030">'+o.joinErr+'</div>':'')+'</div>';
+  if (NET.state === "on"){
+    var tables = liveTables();
+    for (var li=0;li<tables.length;li++){
+      var lr = tables[li];
+      var joinedLive = o.room && o.room.code === lr.code;
+      list += '<div class="kv"><span>'+lr.name+'<div class="small">صاحبتها '+lr.owner+' — '+livePlayersCount(lr)+' لاعبين</div></span>'+
+        (lr.priv?'<span class="tag o">خاصة</span>':'<span class="tag g">عامة</span>')+'</div>'+
+        (joinedLive ? '<span class="tag g">انتي جواها</span>' : b("انضمي لطاولة "+lr.name,"oJoinLive",lr.code,"sm"));
+      if (o.joinLive === lr.code && !joinedLive){
+        list += '<div class="card" style="background:#fff6ec"><div class="small">الطاولة خاصة — اكتبي كلمة المرور:</div>'+
+          '<input id="jpass" type="password" placeholder="كلمة المرور" aria-label="كلمة مرور الطاولة">'+
+          b("ادخلي بالكلمة","oPassLive",lr.code,"p sm")+
+          (o.joinErr?'<div class="small" style="color:#b03030">'+o.joinErr+'</div>':'')+'</div>';
+      }
     }
+    h += card("الطاولات المفتوحة على القناة", list || '<div class="small">مفيش طاولات حقيقية مفتوحة دلوقتي — اعملي طاولة وهتظهر لكل الموبايلات المتصلة.</div>');
+  } else {
+    for (var i=0;i<o.rooms.length;i++){
+      var r = o.rooms[i];
+      if (!r.open) continue;
+      if (o.blocked.indexOf(r.owner) >= 0) continue;
+      var joined = o.room && o.room.id === r.id;
+      list += '<div class="kv"><span>'+r.name+'<div class="small">صاحبتها '+r.owner+' — '+r.players.length+' لاعبين</div></span>'+
+        (r.priv?'<span class="tag o">خاصة</span>':'<span class="tag g">عامة</span>')+'</div>'+
+        (joined ? '<span class="tag g">انتي جواها</span>' : b("انضمي لطاولة "+r.name,"oJoin",r.id,"sm"));
+      if (o.joinId === r.id && !joined){
+        list += '<div class="card" style="background:#fff6ec"><div class="small">الطاولة خاصة — اكتبي كلمة المرور:</div>'+
+          '<input id="jpass" type="password" placeholder="كلمة المرور" aria-label="كلمة مرور الطاولة">'+
+          b("ادخلي بالكلمة","oPassTry",r.id,"p sm")+
+          (o.joinErr?'<div class="small" style="color:#b03030">'+o.joinErr+'</div>':'')+'</div>';
+      }
+    }
+    h += card("الطاولات المفتوحة", list || '<div class="small">مفيش طاولات مفتوحة دلوقتي.</div>');
   }
-  h += card("الطاولات المفتوحة", list || '<div class="small">مفيش طاولات مفتوحة دلوقتي.</div>');
   h += card("طلبات الصداقة",
     '<div class="kv"><span>طلبات مستنية</span><b>'+o.reqs.length+'</b></div>'+
     b("شوفي الطلبات","go","reqs","p sm")
@@ -1321,8 +1628,10 @@ SCREENS.room = function(){
   h += card("الطاولة",
     '<div class="kv"><span>النوع</span><b>'+(room.priv?"خاصة بكلمة مرور":"عامة")+'</b></div>'+
     '<div class="kv"><span>المشرفة</span><b>'+room.owner+'</b></div>'+
-    '<div class="kv"><span>اللاعبين</span><b>'+room.players.length+' / 12</b></div>'+
+    '<div class="kv"><span>اللاعبين</span><b>'+roomPeopleCount(room)+' / 12</b></div>'+
     '<div class="kv"><span>اللعبة</span><b>'+(room.started?"شغالة":"متوقفة")+'</b></div>'+
+    (room.code ? '<div class="kv"><span>كود الطاولة</span><b>'+room.code+'</b></div>' : '')+
+    (room.live ? '<div class="small">طاولة حقيقية على القناة المجانية — اللاعبين هنا على موبايلات تانية.</div>' : '')+
     '<div class="kv"><span>الميكروفون بتاعك</span><b>'+(S.online.mic?"شغال":"مقفول")+'</b></div>'+
     b(S.online.mic?"اقفلي الميكروفون":"شغّلي الميكروفون","oMic",null,"p")+
     b("قائمة اللاعبين والنتايج","go","players","sm")
@@ -1360,7 +1669,28 @@ SCREENS.players = function(){
       '<div class="small">'+p.g+' — المايك '+(p.muted?"مكتوم":(p.mic?"شغال":"مقفول"))+'</div></span><b>'+p.score+'</b></div>';
   }
   h += card("الترتيب — مين مطعمه أكبر", list);
+  if (room.live) h += card("القناة", '<div class="small">النتايج هنا بتوصل من موبايلات اللاعبين نفسهم، مش من البيانات المحفوظة.</div>');
   h += card("نصيحة", '<div class="small">النتيجة بتزيد لما تطبخي وتخدمي زبائن وتوصلي لمستويات أعلى. كبّري مطعمك أكتر من الباقي.</div>');
+  return h;
+};
+
+SCREENS.leaderboard = function(){
+  var h = head("قائمة المتصدرين");
+  var rows = lbRows(NET.state !== "on");
+  h += card("أقوى المطاعم",
+    '<div class="small">'+(NET.state === "on"
+      ? "النتايج بتوصل لحظياً من كل الموبايلات المتصلة — ترتيبك بيتحدث لوحده."
+      : "القناة المجانية مش متاحة دلوقتي — دي نتايج محفوظة عندك، وأول ما تتصل بالنت هتتحدث.")+'</div>'
+  );
+  var list = "";
+  var top = Math.min(rows.length, 20);
+  for (var i=0;i<top;i++){
+    var r = rows[i];
+    list += '<div class="kv"><span>'+(i+1)+'. '+r.n+(r.me?' (انتي)':'')+
+      '<div class="small">'+(r.me?'مطعمك':'مطعمها')+'</div></span><b>'+r.s+'</b></div>';
+  }
+  h += card("الترتيب", list || '<div class="small">مفيش نتايج لسه.</div>');
+  h += card("نصيحة", '<div class="small">نتيجتك = مستوى المطعم + الزبائن اللي خدمتيهم + الكاشير الكلي + النجوم. اطبخي وخدمي أكتر عشان تطلعي فوق.</div>');
   return h;
 };
 
@@ -1368,12 +1698,17 @@ SCREENS.muteList = function(){
   var room = S.online.room;
   if (!room || !room.mine) return head("كتم المايك") + card("مش متاح", '<div class="small">كتم المايك لمشرفة الطاولة بس.</div>');
   var h = head("كتم مايك لاعب");
-  if (!room.players.length) return h + card("مفيش لاعبين", '<div class="small">أضيفي بوت أو خلي حد ينضم الأول.</div>');
+  var items = [];
+  if (room.live){
+    for (var id in NET.peers) items.push({key:id, n:NET.peers[id].n, muted:NET.peers[id].muted});
+  } else {
+    for (var i=0;i<room.players.length;i++) items.push({key:String(i), n:room.players[i].n, muted:room.players[i].muted});
+  }
+  if (!items.length) return h + card("مفيش لاعبين", '<div class="small">أضيفي بوت أو خلي حد ينضم الأول.</div>');
   var list = "";
-  for (var i=0;i<room.players.length;i++){
-    var p = room.players[i];
-    list += '<div class="kv"><span>'+p.n+'<div class="small">'+(p.muted?"المايك مكتوم":"المايك شغال")+'</div></span>'+
-      b(p.muted?"شغّلي له المايك":"اكتمي مايكه","oMuteP",String(i),"sm")+'</div>';
+  for (var k=0;k<items.length;k++){
+    list += '<div class="kv"><span>'+items[k].n+'<div class="small">'+(items[k].muted?"المايك مكتوم":"المايك شغال")+'</div></span>'+
+      b(items[k].muted?"شغّلي له المايك":"اكتمي مايكه","oMuteP",items[k].key,"sm")+'</div>';
   }
   return h + card("اللاعبين", list);
 };
@@ -2065,7 +2400,11 @@ function act(a, arg, arg2){
     var newNick = inputVal("onick");
     if (!newNick){ toast("اكتبي اسمك الأول"); return; }
     S.online.nick = newNick;
-    if (S.online.room && S.online.room.mine) S.online.room.owner = newNick;
+    if (S.online.room && S.online.room.mine){
+      S.online.room.owner = newNick;
+      if (S.online.room.live) netAnnounceRoom();
+    }
+    netPublishLb();
     toast("تم حفظ الاسم — " + newNick);
     fin(); return;
 
@@ -2084,12 +2423,16 @@ function act(a, arg, arg2){
     var rpriv = !!S.online.newPriv;
     var rpass = rpriv ? inputVal("opass") : "";
     if (rpriv && !rpass){ toast("اكتبي كلمة مرور للطاولة الخاصة"); return; }
-    var newRoom = {id:"my"+Date.now(), name:rname, owner:S.online.nick, priv:rpriv, pass:rpass, open:true, linkOn:true, mic:true, chatOn:true, started:false, mine:true, bot:false, players:[]};
+    var newRoom = {id:"my"+Date.now(), code:randCode(5), name:rname, owner:S.online.nick, priv:rpriv, pass:rpass, open:true, linkOn:true, mic:true, chatOn:true, started:false, mine:true, bot:false, live:(NET.state === "on"), players:[]};
     S.online.room = newRoom;
     S.online.rooms.unshift(newRoom);
     S.online.newPriv = false;
+    if (NET.state === "on"){
+      netEnter(newRoom.code);
+      netAnnounceRoom();
+    }
     sfx("success");
-    toast("الطاولة " + rname + " اتفتحت — شاركي رابط الدعوة مع صاحباتك");
+    toast("الطاولة " + rname + " اتفتحت — كودها " + newRoom.code + (NET.state === "on" ? " وهتظهر لكل الموبايلات المتصلة" : " — شاركيه مع صاحباتك"));
     fin();
     go("room"); return;
 
@@ -2117,11 +2460,42 @@ function act(a, arg, arg2){
     if (given !== pr.pass){ S.online.joinErr = "كلمة المرور غلط — جربي تاني"; sfx("error"); say("كلمة المرور غلط. جربي تاني"); render(); return; }
     joinRoom(pr); return;
 
+  case "oJoinLive":
+    if (NET.state !== "on"){ toast("القناة المجانية مش متاحة دلوقتي — جربي تاني بعد شوية"); return; }
+    var liveRoom = NET.rooms[arg];
+    if (!liveRoom){ toast("الطاولة مش موجودة"); return; }
+    if (S.online.blocked.indexOf(liveRoom.owner) >= 0){ toast("مش قادرة تنضمي لطاولة " + liveRoom.owner + " — هي في قائمة المحظورين عندك"); return; }
+    if (S.online.room && S.online.room.code === liveRoom.code){ go("room"); return; }
+    if (!liveRoom.open){ toast("الطاولة مقفولة دلوقتي"); return; }
+    if (livePlayersCount(liveRoom) >= 12){ toast("الطاولة اتملت — 12 لاعب"); return; }
+    if (liveRoom.priv){
+      S.online.joinLive = liveRoom.code;
+      S.online.joinErr = "";
+      render();
+      say("الطاولة " + liveRoom.name + " خاصة. اكتبي كلمة المرور");
+      return;
+    }
+    enterLive(liveRoom); return;
+
+  case "oPassLive":
+    var lr2 = NET.rooms[arg];
+    if (!lr2){ toast("الطاولة مش موجودة"); return; }
+    var givenLive = inputVal("jpass");
+    if (!givenLive){ S.online.joinErr = "اكتبي كلمة المرور الأول"; render(); return; }
+    if (hashPass(givenLive) !== lr2.ph){ S.online.joinErr = "كلمة المرور غلط — جربي تاني"; sfx("error"); say("كلمة المرور غلط. جربي تاني"); render(); return; }
+    S.online.joinLive = "";
+    S.online.joinErr = "";
+    enterLive(lr2); return;
+
   case "oLeave":
     if (!S.online.room){ toast("انتي مش في طاولة"); return; }
-    var leftName = S.online.room.name;
+    var leftRoom = S.online.room;
+    var leftName = leftRoom.name;
+    if (leftRoom.mine) netCloseRoom();
+    netLeave();
     S.online.room = null;
     S.online.joinId = "";
+    S.online.joinLive = "";
     S.online.joinErr = "";
     toast("غادرتي طاولة " + leftName);
     go("online"); return;
@@ -2129,6 +2503,8 @@ function act(a, arg, arg2){
   case "oLink":
     if (!S.online.room || !S.online.room.mine){ toast("الرابط لمشرفة الطاولة بس"); return; }
     S.online.room.linkOn = !S.online.room.linkOn;
+    S.online.room.open = S.online.room.linkOn;
+    if (S.online.room.live) netAnnounceRoom();
     toast(S.online.room.linkOn ? "رابط الدعوة اتشغّل" : "رابط الدعوة اتوقف — محدش هيقدر ينضم بالرابط");
     fin(); return;
 
@@ -2147,6 +2523,7 @@ function act(a, arg, arg2){
     var botName = botNames[botRoom.players.length % botNames.length] + " " + (botRoom.players.length + 1);
     botRoom.players.push({n:botName, g:"بوت", mic:false, muted:false, bot:true, score:250 + Math.floor(Math.random()*500)});
     botRoom.bot = true;
+    if (botRoom.live) netAnnounceRoom();
     toast("البوت " + botName + " دخل الطاولة — قدامك تلعبي ضده");
     fin(); return;
 
@@ -2154,6 +2531,7 @@ function act(a, arg, arg2){
     var startRoom = S.online.room;
     if (!startRoom || !startRoom.mine){ toast("بدء اللعبة لمشرفة الطاولة بس"); return; }
     startRoom.started = true;
+    if (startRoom.live){ netPublish("rooms/" + startRoom.code + "/ctl", {t:"start"}); netAnnounceRoom(); }
     toast("اللعبة بدأت — كبّري مطعمك أكتر من الباقي");
     fin(); return;
 
@@ -2161,6 +2539,7 @@ function act(a, arg, arg2){
     var stopRoom = S.online.room;
     if (!stopRoom || !stopRoom.mine){ toast("ايقاف اللعبة لمشرفة الطاولة بس"); return; }
     stopRoom.started = false;
+    if (stopRoom.live){ netPublish("rooms/" + stopRoom.code + "/ctl", {t:"stop"}); netAnnounceRoom(); }
     toast("اللعبة وقفت — النتايج زي ما هي");
     fin(); return;
 
@@ -2169,6 +2548,7 @@ function act(a, arg, arg2){
     if (!reRoom || !reRoom.mine){ toast("بدء اللعبة من الأول لمشرفة الطاولة بس"); return; }
     for (var pi=0; pi<reRoom.players.length; pi++) reRoom.players[pi].score = 0;
     reRoom.started = true;
+    if (reRoom.live){ netPublish("rooms/" + reRoom.code + "/ctl", {t:"restart"}); netAnnounceRoom(); }
     sfx("bell");
     toast("اللعبة بدأت من الأول — كل النتايج اتصفّرت");
     fin(); return;
@@ -2176,6 +2556,14 @@ function act(a, arg, arg2){
   case "oMuteP":
     var muteRoom = S.online.room;
     if (!muteRoom || !muteRoom.mine){ toast("الكتم لمشرفة الطاولة بس"); return; }
+    if (muteRoom.live){
+      var liveP = NET.peers[arg];
+      if (!liveP){ toast("اللاعب مش موجود"); return; }
+      liveP.muted = !liveP.muted;
+      netPublish("rooms/" + muteRoom.code + "/ctl", {t:"mute", id:arg, muted:liveP.muted});
+      toast(liveP.muted ? "اتكتم مايك " + liveP.n : "اتفتح مايك " + liveP.n);
+      fin(); return;
+    }
     var muteP = muteRoom.players[n];
     if (!muteP){ toast("اللاعب مش موجود"); return; }
     muteP.muted = !muteP.muted;
@@ -2184,6 +2572,7 @@ function act(a, arg, arg2){
 
   case "oMic":
     S.online.mic = !S.online.mic;
+    if (NET.joined) netPublish("rooms/" + NET.joined + "/presence", {t:"hb", id:NET.id, n:S.online.nick, g:S.online.gender, s:myScore(), mic:S.online.mic});
     if (S.online.mic) toast("الميكروفون شغال — اللي في الطاولة سامعينك");
     else toast("الميكروفون اتقفل");
     fin(); return;
@@ -2202,6 +2591,7 @@ function act(a, arg, arg2){
     var msgTxt = inputVal("omsg");
     if (!msgTxt){ toast("اكتبي رسالة الأول"); return; }
     S.online.msgs.push({n:S.online.nick, mine:true, audio:"", t:msgTxt});
+    if (NET.joined) netPublish("rooms/" + NET.joined + "/chat", {id:NET.id, n:S.online.nick, t:msgTxt, a:"", d:0});
     toast("اتبعتت رسالتك — صاحبتك هتسمعها بالصوت");
     fin(); return;
 
@@ -2824,6 +3214,7 @@ try{ if (location.hash === "#reset") localStorage.removeItem(LS); }catch(e){}
 load();
 try{ document.body.className = S.bigText ? "big" : ""; }catch(e){}
 render();
+try{ setTimeout(netInit, 800); }catch(e){}
 </script>
 </body>
 </html>
