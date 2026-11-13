@@ -322,7 +322,7 @@ function checkAch(){
     if (ok){
       S.ach.push(a.id);
       S.star += a.s; S.coin += 50;
-      setTimeout(function(){ toast("وسام جديد: " + a.n + " +" + a.s + " نجمة"); }, 400);
+      (function(txt){ setTimeout(function(){ toast(txt); }, 400); })("وسام جديد: " + a.n + " +" + a.s + " نجمة");
     }
   }
 }
@@ -1237,7 +1237,7 @@ SCREENS.stats = function(){
 };
 
 /* ===== المحرك: كل الأزرار ===== */
-function fin(){ save(); checkAch(); render(); }
+function fin(){ checkAch(); save(); render(); }
 function earn(n){ S.pending += Math.max(0, Math.round(n)); }
 function bumpRating(d){ S.rating = Math.max(1, Math.min(5, Math.round((S.rating + d)*100)/100)); }
 function num(x){ var n = Number(x); return isFinite(n) ? n : 0; }
