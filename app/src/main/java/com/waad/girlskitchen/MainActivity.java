@@ -131,6 +131,18 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean ttsAvailable() { return ttsReady; }
+
+        @JavascriptInterface
+        public boolean screenReader() {
+            try {
+                android.view.accessibility.AccessibilityManager am =
+                    (android.view.accessibility.AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
+                if (am == null || !am.isEnabled()) return false;
+                return am.isTouchExplorationEnabled();
+            } catch (Exception e) {
+                return false;
+            }
+        }
     }
 
     @Override
