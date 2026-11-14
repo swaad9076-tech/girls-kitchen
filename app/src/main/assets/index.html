@@ -69,7 +69,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
-var APP_VER = "1.8";
+var APP_VER = "1.9";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
 var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
 var DISHES = [
@@ -396,6 +396,13 @@ function netPresence(m){
     return;
   }
   var oldPeer = NET.peers[m.id] || {};
+  if (oldPeer.mic !== undefined && !!oldPeer.mic !== !!m.mic && m.t !== "join" && S.voiceCues !== false){
+    try{
+      sfx(m.mic ? "bell" : "click");
+      toast((m.n || "صاحبتك") + (m.mic ? " فتحت المايك" : " قفلت المايك"));
+      say((m.n || "صاحبتك") + (m.mic ? " فتحت المايك" : " قفلت المايك"));
+    }catch(e){}
+  }
   NET.peers[m.id] = {n:m.n || "لاعبة", g:m.g || "بنت", s:m.s || 0, mic:!!m.mic, muted:!!m.muted, team:(m.team || oldPeer.team || ""), last:Date.now()};
   netRender();
 }
@@ -657,6 +664,7 @@ var HELP = {
   room:"الطاولة الأونلاين. المايك دايمًا فوق قصادك، وكل حاجة تانية جوه الطاولة.",
   wardrobe:"الدولاب. تختاري هدومك وشكلك.",
   minigames:"الألعاب الصغيرة. كل لعبة ليها شرح صوتي لما تدخليها.",
+  voicediag:"تشخيص الصوت. أرقام بتقولك الصوت طالع ولا واصل ولا لأ، وزرار اختبار المايك ونغمة للطاولة.",
   friends:"الأصدقاء. كل صديقاتك وحالة كل واحدة: متصلة دلوقتي ولا لأ، ونتيجتها، وزرار تفتحي ملفها أو تبعتيلها رسالة. الحالة بتتحدث لوحدها."
 };
 function screenHelp(id){
@@ -671,6 +679,7 @@ function screenHelp(id){
 /* ===== الميكروفون المباشر — لاسلكي بين الموبايلات ===== */
 var PTT = {on:false, mr:null, stream:null, t0:0};
 var LIVEQ = [], LIVE_BUSY = false;
+var LIVE_SENT = 0, LIVE_RECV = 0, LIVE_PLAY = 0, LIVE_ERR = "";
 
 function pickMime(){
   var list = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
@@ -699,15 +708,58 @@ function blobToB64(blob, cb){
 }
 /* فتح الصوت في WebView من أول لمسة — من غيرها المتصفح بيمنع التشغيل */
 var AU_OK = false;
+var ACX = null;
+function acx(){
+  if (ACX) return ACX;
+  try{
+    var C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    ACX = new C();
+  }catch(e){ ACX = null; }
+  return ACX;
+}
 function unlockAudio(){
   if (AU_OK) return;
   AU_OK = true;
+  var c = acx();
+  if (c && c.state === "suspended"){ try{ c.resume(); }catch(e){} }
   try{
     var a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=");
     a.volume = 0.01;
     var p = a.play();
     if (p && p.catch) p.catch(function(){});
   }catch(e){}
+}
+/* تشغيل أي صوت بمكبّر صوت — الباقة بتتقري بالعافي عليها من غير سماعات */
+function playUrl(url, gainVal, cb){
+  var el = null, src = null, done = false;
+  var fin = function(){
+    if (done) return;
+    done = true;
+    try{ el.pause(); }catch(e){}
+    if (src){ try{ src.disconnect(); }catch(e){} }
+    if (cb){ try{ cb(); }catch(e){} }
+  };
+  try{ el = new Audio(url); }catch(e){ if (cb) try{ cb(); }catch(e2){} return null; }
+  var c = acx();
+  if (c){
+    try{
+      if (c.state === "suspended"){ c.resume(); }
+      src = c.createMediaElementSource(el);
+      var g = c.createGain();
+      g.gain.value = gainVal || 1;
+      src.connect(g);
+      g.connect(c.destination);
+    }catch(e){ src = null; }
+  }
+  if (!src){ try{ el.volume = 1; }catch(e){} }
+  el.onended = fin;
+  el.onerror = fin;
+  try{
+    var pr = el.play();
+    if (pr && pr.catch) pr.catch(function(){ fin(); });
+  }catch(e){ fin(); }
+  return el;
 }
 try{
   document.addEventListener("touchend", unlockAudio, true);
@@ -754,7 +806,10 @@ function recordSeg(){
         if (blob.size > 900){
           blobToB64(blob, function(b64){
             if (!b64) return;
-            try{ netPublish("rooms/" + NET.joined + "/live", {id:NET.id, n:S.online.nick, a:b64, m:type, t:Date.now()}); }catch(e){}
+            try{
+              if (!NET.c || !NET.c.connected){ LIVE_ERR = "القناة مقفولة — الصوت مش بيطلع"; }
+              else { netPublish("rooms/" + NET.joined + "/live", {id:NET.id, n:S.online.nick, a:b64, m:type, t:Date.now()}); LIVE_SENT++; }
+            }catch(e){ LIVE_ERR = "خطأ في الإرسال: " + (e && e.message ? e.message : "مجهول"); }
           });
         }
       }
@@ -780,6 +835,7 @@ function netLive(m){
   if (!m || !m.a || m.id === NET.id) return;
   var p = NET.peers[m.id];
   if (p && p.muted) return;
+  LIVE_RECV++;
   LIVEQ.push({a:m.a, m:m.m || "audio/webm", n:m.n || ""});
   if (LIVEQ.length > 12) LIVEQ.shift();
   if (!LIVE_BUSY) playLive();
@@ -789,28 +845,19 @@ function playLive(){
   LIVE_BUSY = true;
   var it = LIVEQ.shift();
   var blob = b64ToBlob(it.a, it.m);
-  if (!blob){ setTimeout(playLive, 10); return; }
-  var url = "", el = null;
-  try{
-    url = URL.createObjectURL(blob);
-    el = new Audio(url);
-    el.volume = 1;
-  }catch(e){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
+  if (!blob){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
+  var url = "";
+  try{ url = URL.createObjectURL(blob); }catch(e){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
+  LIVE_PLAY++;
   var done = false;
   var next = function(){
     if (done) return;
     done = true;
-    try{ el.pause(); }catch(e){}
     try{ URL.revokeObjectURL(url); }catch(e){}
     playLive();
   };
-  el.onended = next;
-  el.onerror = next;
+  playUrl(url, 3.0, next);
   setTimeout(function(){ if (!done) next(); }, 8000);
-  try{
-    var pr = el.play();
-    if (pr && pr.catch) pr.catch(function(){ next(); });
-  }catch(e){ next(); }
 }
 /* اختبار الميكروفون على نفس الجهاز: بيسجل 3 ثواني وبيشغلها */
 function micTest(){
@@ -1994,7 +2041,12 @@ SCREENS.settings = function(){
     b(S.readerMode?"اقفلي وضع قارئ الشاشة":"شغّلي وضع قارئ الشاشة","readerMode",null,S.readerMode?"d bigbtn":"g bigbtn")+
     b("اختبار قارئ الشاشة — اسمع الأزرار","srTest",null,"p sm")
   );
-  h += card("اختبار الميكروفون",
+  h += card("الصوت في الطاولات",
+    '<div class="small">لو حد مش سامعك أو مش سامعة حد، افتحي التشخيص — الأرقام بتقولك الصوت طالع ولا واصل ولا لأ.</div>'+
+    b("تشخيص الصوت","go","voicediag","p bigbtn")
+  );
+
+h += card("اختبار الميكروفون",
     '<div class="small">بيسجل 3 ثواني ويشغلها على نفس الموبايل — أسرع طريقة تعرفي المايك شغال ولا لأ.</div>'+
     b("اختبار المايك","micTest",null,"p bigbtn")
   );
@@ -2090,6 +2142,44 @@ SCREENS.staffstyle = function(){
   );
   return h;
 };
+
+/* نغمة اختبار: بتبعت صوت حقيقي على القناة — لو صاحبتك سمعتها يبقى المسار شغال */
+function toneWavBase64(){
+  var sr = 8000, secs = 1.2, n = Math.floor(sr * secs), data = [];
+  for (var i = 0; i < n; i++){
+    var t = i / sr;
+    var env = Math.min(1, i / 400) * Math.min(1, (n - i) / 400);
+    var v = Math.sin(2 * Math.PI * 660 * t) * 0.6 * env;
+    var b = Math.max(-1, Math.min(1, v));
+    data.push((b * 32767) & 255, ((b * 32767) >> 8) & 255);
+  }
+  var head = [];
+  function str(x){ for (var i = 0; i < x.length; i++) head.push(x.charCodeAt(i)); }
+  function u32(v){ head.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255); }
+  function u16(v){ head.push(v & 255, (v >> 8) & 255); }
+  str("RIFF"); u32(36 + data.length); str("WAVEfmt "); u32(16); u16(1); u16(1);
+  u32(sr); u32(sr * 2); u16(2); u16(16); str("data"); u32(data.length);
+  var all = head.concat(data), bin = "";
+  for (var i = 0; i < all.length; i++) bin += String.fromCharCode(all[i]);
+  return btoa(bin);
+}
+function voiceTestTone(){
+  if (NET.state !== "on" || !NET.joined){
+    toast("لازم تكوني جوه طاولة ومتصلة بالقناة"); sfx("error"); return;
+  }
+  var b64 = "";
+  try{ b64 = toneWavBase64(); }catch(e){ toast("مش قادرة أجهز نغمة الاختبار"); return; }
+  try{
+    netPublish("rooms/" + NET.joined + "/live", {id:NET.id, n:S.online.nick, a:b64, m:"audio/wav", t:Date.now()});
+    LIVE_SENT++;
+    toast("ابعت نغمة للطاولة — اسمعيها؟");
+  }catch(e){ LIVE_ERR = "الاختبار فشل: " + (e && e.message ? e.message : "مجهول"); }
+  try{
+    var url = URL.createObjectURL(b64ToBlob(b64, "audio/wav"));
+    playUrl(url, 3.0, function(){ try{ URL.revokeObjectURL(url); }catch(e){} });
+  }catch(e){}
+  render();
+}
 
 /* ===== 22. الأونلاين ===== */
 var REC = {on:false, mr:null, chunks:[], stream:null, t0:0};
@@ -2356,6 +2446,7 @@ SCREENS.room = function(){
           : "اضغطي، اتكلمي، واضغطي تاني عشان توقفي. اللي في الطاولة هيسمعوك، وانتي هتسمعيهم.")+'</div>'
       : '<div class="small">زرار الكلام بيشتغل جوه الطاولات المباشرة على القناة المجانية.</div>')+
     b("اختبار المايك على جهازي","micTest",null,"o bigbtn")+
+    b("تشخيص الصوت","go","voicediag","p bigbtn")+
     '<div class="small">اضغطي الاختبار، اتكلمي 3 ثواني — لو سمعتي صوتك يبقى المايك شغال، ولو مش سامعة نفسك المشكلة في إذن المايك في الإعدادات.</div>'
   );
 
@@ -2613,6 +2704,31 @@ SCREENS.friends = function(){
   h += card("الملحوظة",
     '<div class="small">معرفة مين متصل بتعتمد على إن اللعبة مفتوحة عندها ومتصلة بالنت. لو قفلت اللعبة هتظهر مش متصلة، وده طبيعي.</div>'+
     b(" راجعي طلبات الصداقة","go","reqs","o sm")
+  );
+  return h;
+};
+
+SCREENS.voicediag = function(){
+  var h = head("تشخيص الصوت");
+  var on = NET.state === "on";
+  h += card("حالة القناة",
+    '<div class="kv"><span>الاتصال</span><b>'+(on ? "متصل" : (NET.state === "connecting" ? "بيحاول يتصل" : "مش متصل"))+'</b></div>'+
+    '<div class="kv"><span>جوه طاولة</span><b>'+(NET.joined ? NET.joined : "لأ")+'</b></div>'+
+    '<div class="kv"><span>المايك</span><b>'+(S.online.mic ? "مفتوح" : "مقفول")+'</b></div>'+
+    '<div class="kv"><span>الكلام شغال</span><b>'+(PTT.on ? "أيوه" : "لأ")+'</b></div>'+
+    '<div class="kv"><span>مقاطع اتبعتت</span><b>'+LIVE_SENT+'</b></div>'+
+    '<div class="kv"><span>مقاطع وصلتلك</span><b>'+LIVE_RECV+'</b></div>'+
+    '<div class="kv"><span>مقاطع اتشغلت</span><b>'+LIVE_PLAY+'</b></div>'+
+    (LIVE_ERR ? '<div class="small">آخر مشكلة: '+LIVE_ERR+'</div>' : '<div class="small">مفيش مشاكل مسجلة.</div>')
+  );
+  h += card("جرّبي بنفسك",
+    '<div class="small">اختبار المايك بيسجل 3 ثواني ويشغلها على موبايلك. نغمة الاختبار بتتبعت للطاولة — لو صاحبتك سمعتها يبقى الاتصال سليم.</div>'+
+    b("اختبار المايك على جهازي","micTest",null,"o bigbtn")+
+    b("ابعت نغمة للطاولة","voiceTone",null,"p bigbtn")
+  );
+  h += card("اللي بيحصل",
+    '<div class="small">الصوت بيمشي مقاطع كل ثانية، زي اللاسلكي. لازم الاتنين يكونوا جوه نفس الطاولة ومتصلين بالنت، والمايك مفتوح عند كل واحدة.</div>'+
+    b("رجّعي الأرقام صفر","voiceReset",null,"o sm")
   );
   return h;
 };
@@ -3646,12 +3762,10 @@ function act(a, arg, arg2){
     var msg = S.online.msgs[n];
     if (!msg){ toast("الرسالة مش موجودة"); return; }
     if (msg.audio){
-      try{
-        var audioEl = new Audio(msg.audio);
-        audioEl.play();
-        toast("بشغّل رسالة " + (msg.mine ? "انتي" : msg.n));
-        return;
-      }catch(e){}
+      unlockAudio();
+      var played = playUrl(msg.audio, 3.0, null);
+      toast("بشغّل رسالة " + (msg.mine ? "انتي" : msg.n) + (played ? "" : " — الصوت مش راضي يشتغل"));
+      return;
     }
     if (msg.t){ toast("رسالة من " + (msg.mine ? "انتي" : msg.n) + ": " + msg.t); return; }
     toast("الرسالة الصوتية دي مش محفوظة بعد ما قفلتي اللعبة");
@@ -4011,6 +4125,11 @@ function act(a, arg, arg2){
     if (NET.state === "on") netPublishLb();
     toast("اتحدثت الحالة");
     fin(); return;
+
+  case "voiceTone": voiceTestTone(); return;
+  case "voiceReset":
+    LIVE_SENT = 0; LIVE_RECV = 0; LIVE_PLAY = 0; LIVE_ERR = "";
+    toast("اتصفرت الأرقام"); fin(); return;
 
   case "micTest":
     micTest(); return;
