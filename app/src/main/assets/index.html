@@ -69,16 +69,16 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
-var APP_VER = "1.9";
+var APP_VER = "2.0";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
-var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه"};
+var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه", cheese:"جبن", pasta:"مكرونة"};
 var DISHES = [
   {id:"salad", n:"سلطة طازجة", ing:["tomato","cucumber","herb"], base:10},
   {id:"burger", n:"برجر لحم", ing:["meat","flour","tomato"], base:16},
   {id:"cake", n:"كيك شوكولاتة", ing:["flour","sugar","choco"], base:20},
   {id:"pie", n:"فطيرة فواكه", ing:["flour","fruit","sugar"], base:18},
-  {id:"soup", n:"شوربة خضار", ing:["tomato","herb","milk"], base:12},
-  {id:"pasta", n:"مكرونة بالجبن", ing:["flour","milk","meat"], base:17}
+  {id:"soup", n:"شوربة طماطم وأعشاب", ing:["tomato","herb","milk"], base:12},
+  {id:"pasta", n:"مكرونة بالجبن", ing:["pasta","cheese","milk"], base:17}
 ];
 var DRINKS = [
   {id:"latte", n:"لاتيه", fac:"espresso"},
@@ -945,7 +945,7 @@ function defState(){
   return {
     coin:250, heart:3, star:0, xp:0, level:1,
     power:false, breakers:{main:false,kitchen:false,hall:false},
-    stock:{tomato:4,cucumber:4,meat:3,flour:5,sugar:4,choco:3,milk:4,herb:3,fruit:4},
+    stock:{tomato:4,cucumber:4,meat:3,flour:5,sugar:4,choco:3,milk:4,herb:3,fruit:4,cheese:3,pasta:4},
     spices:0, tray:[], recipes:[], ready:[], readyDrinks:[],
     cook:null, lastRate:null, dirty:0, washes:0, dishesMade:0,
     fac:{microwave:0,oven:0,fryer:0,dishwasher:0,espresso:0,blender:0,tea:0},
@@ -1070,6 +1070,16 @@ function cdBtn(label, action, arg, key, ms, cls){
   return b(label, action, arg, cls);
 }
 function hasIng(ing){ for (var i=0;i<ing.length;i++){ if ((S.stock[ing[i]]||0) <= 0) return false; } return true; }
+function lackNames(ing){
+  var out = [];
+  for (var i=0;i<ing.length;i++){
+    var k = ing[i];
+    if (!ING[k]) continue;
+    if ((S.stock[k]||0) <= 0 && out.indexOf(ING[k]) < 0) out.push(ING[k]);
+  }
+  return out;
+}
+function lackLine(ing){ var a = lackNames(ing); return a.length ? "الناقص: " + a.join(" و ") : ""; }
 function useIng(ing){ for (var i=0;i<ing.length;i++) S.stock[ing[i]] = (S.stock[ing[i]]||0) - 1; }
 function dishById(id){
   for (var i=0;i<DISHES.length;i++) if (DISHES[i].id===id) return DISHES[i];
@@ -1364,8 +1374,10 @@ SCREENS.cook = function(){
   for (var i=0;i<dd.length;i++){
     var d = dd[i];
     var can = hasIng(d.ing);
-    daily += '<div class="kv"><span>'+d.n+'<div class="small">'+d.ing.map(function(x){return ING[x];}).join(" + ")+'</div></span>'+
-             (can ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+d.id+'\')">اطبخي</button>' : '<span class="tag o">مكونات ناقصة</span>')+'</div>';
+    var ingTxt = d.ing.map(function(x){return ING[x] || "مكون";}).join(" + ");
+    daily += '<div class="kv"><span>'+d.n+'<div class="small">'+ingTxt+'</div></span>'+
+             (can ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+d.id+'\')">اطبخي</button>' : '<span class="tag o">مكونات ناقصة</span>')+'</div>'+
+             (can ? "" : '<div class="small">'+lackLine(d.ing)+'</div>'+b("هاتي الناقص لـ "+d.n,"buyDish",d.id,"o sm"));
   }
   h += card("قائمة الوصفات اليومية", daily);
 
@@ -1373,8 +1385,11 @@ SCREENS.cook = function(){
     var mine = "";
     for (var r=0;r<S.recipes.length;r++){
       var rr = S.recipes[r];
-      mine += '<div class="kv"><span>'+rr.n+'<div class="small">'+rr.ing.map(function(x){return ING[x];}).join(" + ")+' — سعرها '+rr.base+'</div></span>'+
-              (hasIng(rr.ing) ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+rr.id+'\')">اطبخي</button>' : '<span class="tag o">ناقصة</span>')+'</div>';
+      var ingTxt2 = rr.ing.map(function(x){return ING[x] || "مكون";}).join(" + ");
+      var canR = hasIng(rr.ing);
+      mine += '<div class="kv"><span>'+rr.n+'<div class="small">'+ingTxt2+' — سعرها '+rr.base+'</div></span>'+
+              (canR ? '<button class="btn g sm" style="width:auto" onclick="act(\'cookStart\',\''+rr.id+'\')">اطبخي</button>' : '<span class="tag o">ناقصة</span>')+'</div>'+
+              (canR ? "" : '<div class="small">'+lackLine(rr.ing)+'</div>'+b("هاتي الناقص لـ "+rr.n,"buyDish",rr.id,"o sm"));
     }
     h += card("وصفاتي المبتكرة", mine);
   }
@@ -1763,7 +1778,8 @@ SCREENS.shop = function(){
   );
   h += card("متجر المؤن",
     ingRow("tomato",12)+ingRow("cucumber",10)+ingRow("meat",22)+ingRow("flour",9)+
-    ingRow("sugar",8)+ingRow("choco",16)+ingRow("milk",10)+ingRow("herb",9)+ingRow("fruit",14)
+    ingRow("sugar",8)+ingRow("choco",16)+ingRow("milk",10)+ingRow("herb",9)+ingRow("fruit",14)+
+    ingRow("cheese",15)+ingRow("pasta",11)
   );
   h += card("أزياء الشيف الأنيقة", b("خزانة ملابس الشيف","go","wardrobe","p sm"));
   h += card("ورشة الأفكار والابتكار",
@@ -3044,7 +3060,7 @@ function act(a, arg, arg2){
     var d = dishById(String(arg));
     if (!d){ toast("وصفة غير معروفة"); return; }
     if (!requirePower()) return;
-    if (!hasIng(d.ing)){ toast("مكونات ناقصة — اشتري من المتجر"); return; }
+    if (!hasIng(d.ing)){ toast("لسه ناقص: " + lackNames(d.ing).join(" و ") + " — اضغطي زرار هاتي الناقص جنب الطبق"); return; }
     useIng(d.ing);
     S.cook = { id:d.id, n:d.n, ing:d.ing.slice(), cut:0, done:0, temp:180, garn:[], burnt:false };
     go("cut"); return;
@@ -3173,6 +3189,19 @@ function act(a, arg, arg2){
     give("xp",5);
     bumpRating(0.05);
     toast(S.fac.dishwasher > 0 ? "غسالة الصحون خلصت كل حاجة" : "الأطباق اتنضفت");
+    fin(); return;
+
+  case "buyDish":
+    var bd = dishById(String(arg));
+    if (!bd){ toast("الطبق مش موجود"); return; }
+    var needB = {}, costB = 0, gotB = [];
+    for (var bi=0;bi<bd.ing.length;bi++){ var bk = bd.ing[bi]; if (!ING[bk]) continue; needB[bk] = (needB[bk]||0) + 1; }
+    for (var bn in needB){ var lackB = needB[bn] - (S.stock[bn]||0); if (lackB > 0){ costB += lackB * 12; gotB.push(ING[bn]); } }
+    if (!gotB.length){ toast("كل مكونات " + bd.n + " موجودة"); sfx("click"); return; }
+    if (!spend(costB)) return;
+    for (var bn2 in needB){ var lb = needB[bn2] - (S.stock[bn2]||0); if (lb > 0) S.stock[bn2] = (S.stock[bn2]||0) + lb; }
+    sfx("buy");
+    toast("اشتريت الناقص لـ " + bd.n + ": " + gotB.join(" و ") + " — " + costB + " عملة");
     fin(); return;
 
   case "buyMissing":
