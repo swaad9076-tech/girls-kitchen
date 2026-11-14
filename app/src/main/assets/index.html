@@ -69,7 +69,7 @@ input{width:100%;padding:12px;border-radius:14px;border:2px solid #ffd7c2;font-s
 
 /* ===== البيانات الأساسية ===== */
 var LS = "kitchen_v1";
-var APP_VER = "3.0";
+var APP_VER = "3.1";
 var ICON = {coin:"🪙", heart:"💗", star:"⭐"};
 var ING = {tomato:"طماطم", cucumber:"خيار", meat:"لحم", flour:"دقيق", sugar:"سكر", choco:"شوكولاتة", milk:"لبن", herb:"أعشاب", fruit:"فواكه", cheese:"جبن", pasta:"مكرونة", potato:"بطاطس", rice:"أرز", onion:"بصل", egg:"بيض", chicken:"فراخ", fish:"سمك", honey:"عسل", lemon:"ليمون", banana:"موز", oil:"زيت"};
 var DISHES = [
@@ -365,6 +365,7 @@ function netEnter(code){
   netSub("rooms/" + code + "/chat");
   netSub("rooms/" + code + "/ctl");
   netSub("rooms/" + code + "/live");
+  netSub("rooms/" + code + "/rtc");
   netPublish("rooms/" + code + "/presence", {t:"join", id:NET.id, n:S.online.nick, g:S.online.gender, s:myScore(), mic:!!S.online.mic, team:(S.online.room && S.online.room.myTeam) || ""});
 }
 function nameJoin(code){ netEnter(code); }
@@ -403,6 +404,7 @@ function netMessage(t, m){
   else if (kind === "chat") netChat(m);
   else if (kind === "ctl") netCtl(m);
   else if (kind === "live") netLive(m);
+  else if (kind === "rtc") netRtc(m);
 }
 
 function netPresence(m){
@@ -739,7 +741,7 @@ function screenHelp(id){
 /* ===== الميكروفون المباشر — لاسلكي بين الموبايلات ===== */
 var PTT = {on:false, mr:null, stream:null, t0:0};
 var LIVEQ = [], LIVE_BUSY = false;
-var LIVE_SENT = 0, LIVE_RECV = 0, LIVE_PLAY = 0, LIVE_ERR = "";
+var LIVE_SENT = 0, LIVE_RECV = 0, LIVE_PLAY = 0, LIVE_ERR = "", LIVE_PATH = "";
 
 function pickMime(){
   var list = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
@@ -905,6 +907,233 @@ function pttStop(){
   if (was){ toast("قفلتي الكلام"); sfx("click"); }
   render();
 }
+
+/* ===== مكالمة مباشرة بين الموبايلين (ويب آر تي سي) ===== */
+var RTC_ICE = [
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun1.l.google.com:19302"},
+  {urls:"turn:openrelay.metered.ca:80", username:"openrelayproject", credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443", username:"openrelayproject", credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443?transport=tcp", username:"openrelayproject", credential:"openrelayproject"}
+];
+var RTC = {on:false, pc:null, stream:null, peer:"", state:"off", el:null, pend:[], timer:0, lastErr:"", pendOffer:null, pendAns:null};
+
+function rtcSupported(){
+  try{
+    return !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }catch(e){ return false; }
+}
+function rtcSend(o){
+  if (!NET.joined || NET.state !== "on") return;
+  o.from = NET.id;
+  o.n = S.online.nick;
+  netPublish("rooms/" + NET.joined + "/rtc", o);
+}
+function rtcUi(){ try{ if (cur === "room" || cur === "voicediag") render(); }catch(e){} }
+function rtcAudioEl(){
+  if (RTC.el) return RTC.el;
+  try{
+    var a = document.createElement("audio");
+    a.autoplay = true;
+    a.setAttribute("autoplay", "");
+    a.setAttribute("playsinline", "");
+    try{ a.playsInline = true; }catch(e2){}
+    a.volume = 1;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    RTC.el = a;
+  }catch(e){ RTC.el = null; }
+  return RTC.el;
+}
+function rtcPc(){
+  if (RTC.pc) return RTC.pc;
+  var pc = null;
+  try{ pc = new window.RTCPeerConnection({iceServers:RTC_ICE, iceCandidatePoolSize:2}); }catch(e){ pc = null; }
+  if (!pc) return null;
+  RTC.pc = pc;
+  pc.onicecandidate = function(ev){
+    try{ if (ev && ev.candidate) rtcSend({t:"ice", to:RTC.peer, c:ev.candidate}); }catch(e){}
+  };
+  pc.ontrack = function(ev){
+    try{
+      var el = rtcAudioEl();
+      var st = (ev && ev.streams && ev.streams[0]) ? ev.streams[0] : null;
+      if (el && st){
+        el.srcObject = st;
+        var pr = el.play();
+        if (pr && pr.catch) pr.catch(function(){ LIVE_ERR = "الجهاز منع صوت المكالمة"; });
+      }
+      RTC.state = "on";
+      if (RTC.timer){ clearTimeout(RTC.timer); RTC.timer = 0; }
+      toast("المكالمة المباشرة شغالة — سمعي صاحبتك");
+      say("المكالمة المباشرة شغالة");
+      rtcUi();
+    }catch(e){}
+  };
+  pc.onconnectionstatechange = function(){
+    try{
+      var st2 = pc.connectionState;
+      if (st2 === "connected"){ RTC.state = "on"; rtcUi(); }
+      else if (st2 === "failed"){ rtcFail("الشبكة منعت المكالمة المباشرة — المقاطع شغالة عادي"); }
+      else if (st2 === "closed"){ rtcFail(""); }
+    }catch(e){}
+  };
+  return pc;
+}
+function rtcFlushIce(){
+  try{
+    var pc = RTC.pc;
+    if (!pc || !pc.remoteDescription) return;
+    while (RTC.pend.length){
+      var c = RTC.pend.shift();
+      try{ pc.addIceCandidate(c); }catch(e){}
+    }
+  }catch(e){}
+}
+function rtcTeardown(announce){
+  if (announce && RTC.on) rtcSend({t:"bye", to:RTC.peer});
+  if (RTC.timer){ try{ clearTimeout(RTC.timer); }catch(e){} RTC.timer = 0; }
+  try{ if (RTC.pc){ RTC.pc.ontrack = null; RTC.pc.onicecandidate = null; RTC.pc.onconnectionstatechange = null; RTC.pc.close(); } }catch(e){}
+  RTC.pc = null;
+  try{ if (RTC.stream) RTC.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+  RTC.stream = null;
+  try{
+    if (RTC.el){ RTC.el.srcObject = null; RTC.el.pause(); if (RTC.el.parentNode) RTC.el.parentNode.removeChild(RTC.el); }
+  }catch(e){}
+  RTC.el = null;
+  RTC.on = false; RTC.peer = ""; RTC.pend = []; RTC.pendOffer = null; RTC.state = "off";
+}
+function rtcFail(msg){
+  if (RTC.timer){ try{ clearTimeout(RTC.timer); }catch(e){} RTC.timer = 0; }
+  var wasOn = RTC.state === "on";
+  RTC.lastErr = msg || "";
+  rtcTeardown(false);
+  if (msg) toast(msg);
+  if (wasOn) say("المكالمة المباشرة قفلت");
+  rtcUi();
+}
+function rtcBegin(fromId){
+  if (RTC.on) return;
+  if (!rtcSupported()){ rtcFail("الجهاز ده مش بيدعم المكالمات المباشرة"); return; }
+  if (PTT.on) pttStop();
+  RTC.on = true; RTC.state = "wait"; RTC.peer = fromId || ""; RTC.lastErr = "";
+  rtcUi();
+  var got = function(st){
+    if (!st){
+      RTC.on = false; RTC.state = "off";
+      rtcFail("مش قادرة أفتح المايك للمكالمة");
+      return;
+    }
+    RTC.stream = st;
+    var pc = rtcPc();
+    if (!pc){ rtcFail("المكالمة المباشرة مش متاحة على الجهاز ده"); return; }
+    try{ st.getTracks().forEach(function(t){ pc.addTrack(t, st); }); }catch(e){}
+    RTC.timer = setTimeout(function(){
+      if (RTC.state !== "on") rtcFail("مفيش رد من صاحبتك — رجعنا للمقاطع");
+    }, 25000);
+    if (fromId) rtcSend({t:"ready", to:fromId});
+    if (RTC.pendOffer){ var po = RTC.pendOffer; RTC.pendOffer = null; rtcAnswer(po); }
+    rtcUi();
+  };
+  try{
+    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}})
+      .then(got).catch(function(){
+        try{ navigator.mediaDevices.getUserMedia({audio:true}).then(got).catch(function(){ got(null); }); }
+        catch(e){ got(null); }
+      });
+  }catch(e){ got(null); }
+}
+function rtcOffer(){
+  var pc = RTC.pc;
+  if (!pc) return;
+  try{
+    pc.createOffer().then(function(off){
+      return pc.setLocalDescription(off);
+    }).then(function(){
+      rtcSend({t:"offer", to:RTC.peer, sdp:pc.localDescription});
+    }).catch(function(){ rtcFail("مش قادرة أبدأ المكالمة"); });
+  }catch(e){ rtcFail("مش قادرة أبدأ المكالمة"); }
+}
+function rtcAnswer(m){
+  var pc = RTC.pc;
+  if (!pc || !m || !m.sdp) return;
+  RTC.peer = m.from || RTC.peer;
+  try{
+    pc.setRemoteDescription(m.sdp).then(function(){
+      rtcFlushIce();
+      return pc.createAnswer();
+    }).then(function(ans){
+      return pc.setLocalDescription(ans);
+    }).then(function(){
+      rtcSend({t:"answer", to:RTC.peer, sdp:pc.localDescription});
+    }).catch(function(){ rtcFail("مش قادرة أرد على المكالمة"); });
+  }catch(e){ rtcFail("مش قادرة أرد على المكالمة"); }
+}
+function netRtc(m){
+  if (!m || !m.from || m.from === NET.id) return;
+  if (m.to && m.to !== NET.id) return;
+  RTC.peer = m.from || RTC.peer;
+  if (m.t === "hello"){
+    if (RTC.on){ rtcSend({t:"ready", to:m.from}); return; }
+    toast("صاحبتك " + (m.n || "") + " بتكلمك — بجهز المكالمة");
+    say("صاحبتك بتحاول تكلمك — بجهز المكالمة");
+    rtcBegin(m.from);
+    return;
+  }
+  if (m.t === "ready"){
+    if (!RTC.on){ RTC.on = true; RTC.state = "wait"; }
+    rtcOffer(); return;
+  }
+  if (m.t === "offer"){
+    if (!RTC.on){ RTC.pendOffer = m; rtcBegin(m.from); return; }
+    rtcAnswer(m); return;
+  }
+  if (m.t === "answer"){
+    try{
+      var pcA = RTC.pc;
+      if (!pcA || !m.sdp) return;
+      pcA.setRemoteDescription(m.sdp).then(function(){ rtcFlushIce(); }).catch(function(){ rtcFail("المكالمة فشلت في الاتصال"); });
+    }catch(e){}
+    return;
+  }
+  if (m.t === "ice"){
+    try{
+      var pcI = RTC.pc;
+      if (!pcI || !m.c) return;
+      if (!pcI.remoteDescription){ RTC.pend.push(m.c); return; }
+      pcI.addIceCandidate(m.c);
+    }catch(e){}
+    return;
+  }
+  if (m.t === "bye"){ rtcFail("صاحبتك قفلت المكالمة المباشرة"); return; }
+}
+function callStart(){
+  var room = S.online.room;
+  if (!room || !room.live){ toast("المكالمة المباشرة شغالة جوه الطاولات بس"); return; }
+  if (NET.state !== "on"){ toast("لسه مش متصلة بالقناة — جربي بعد شوية"); return; }
+  if (!S.online.mic){ toast("افتحي المايك الأول من زرار الميكروفون"); return; }
+  if (RTC.on){ toast("المكالمة شغالة بالفعل"); return; }
+  if (!rtcSupported()){ toast("الجهاز ده مش بيدعم المكالمات المباشرة — المقاطع شغالة عادي"); return; }
+  var ids = [];
+  for (var kk in NET.peers) ids.push(kk);
+  if (!ids.length){ toast("مفيش حد تاني في الطاولة دلوقتي"); return; }
+  if (ids.length > 1){ toast("المكالمة المباشرة للاتنين بس دلوقتي — الطاولة فيها " + (ids.length+1) + " لاعبات"); return; }
+  RTC.peer = ids[0];
+  rtcBegin("");
+  RTC.peer = ids[0];
+  rtcSend({t:"hello", to:ids[0]});
+  toast("بندوّر على صاحبتك…");
+  say("بندور على صاحبتك");
+  rtcUi();
+}
+function callStop(){
+  var was = RTC.state;
+  rtcTeardown(true);
+  RTC.lastErr = "";
+  toast(was === "on" ? "قفلتي المكالمة المباشرة — رجعنا للمقاطع" : "وقفتي المحاولة");
+  rtcUi();
+}
+
 function netLive(m){
   if (!m || !m.a || m.id === NET.id) return;
   var p = NET.peers[m.id];
@@ -914,24 +1143,85 @@ function netLive(m){
   if (LIVEQ.length > 12) LIVEQ.shift();
   if (!LIVE_BUSY) playLive();
 }
+function b64ToBuf(b64){
+  try{
+    var raw = String(b64 || "").replace(/^data:[^,]*,/, "");
+    if (!raw) return null;
+    var bin = atob(raw);
+    var arr = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+  }catch(e){ return null; }
+}
+/* صوت الطاولة بيتشغل زي اختبار المايك بالظبط: عنصر صوت مباشر.
+   لو الصيغة مش مقروءة، بنفكها بنفسنا ونشغلها من محرك الصوت. */
 function playLive(){
   if (!LIVEQ.length){ LIVE_BUSY = false; return; }
   LIVE_BUSY = true;
   var it = LIVEQ.shift();
-  var blob = b64ToBlob(it.a, it.m);
-  if (!blob){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
-  var url = "";
-  try{ url = URL.createObjectURL(blob); }catch(e){ LIVE_BUSY = false; setTimeout(playLive, 10); return; }
-  LIVE_PLAY++;
-  var done = false;
-  var next = function(){
-    if (done) return;
-    done = true;
-    try{ URL.revokeObjectURL(url); }catch(e){}
-    playLive();
+  var finished = false, triedEl = false, triedCtx = false;
+  var next = function(){ if (finished) return; finished = true; playLive(); };
+
+  var viaCtx = function(){
+    if (finished || triedCtx) return;
+    triedCtx = true;
+    var buf = null;
+    try{ buf = b64ToBuf(it.a); }catch(e){ buf = null; }
+    var c = null;
+    try{ c = acx(); }catch(e){ c = null; }
+    if (!buf || !c || !c.decodeAudioData){
+      LIVE_ERR = "المقطع وصل بس الجهاز مش عارف يشغله";
+      next(); return;
+    }
+    try{ if (c.state === "suspended") c.resume(); }catch(e){}
+    try{
+      c.decodeAudioData(buf, function(ab){
+        if (finished) return;
+        try{
+          var src = c.createBufferSource();
+          src.buffer = ab;
+          var g = c.createGain();
+          g.gain.value = 1.6;
+          src.connect(g); g.connect(c.destination);
+          LIVE_PLAY++; LIVE_PATH = "محرك الصوت";
+          src.onended = next;
+          src.start(0);
+          setTimeout(next, 20000);
+        }catch(e2){ LIVE_ERR = "مش قادرة أشغّل المقطع"; next(); }
+      }, function(){
+        LIVE_ERR = "صيغة الصوت اللي وصلت مش مقروءة على الجهاز ده";
+        next();
+      });
+    }catch(e){ LIVE_ERR = "مش قادرة أفك المقطع"; next(); }
   };
-  playUrl(url, 3.0, next);
-  setTimeout(function(){ if (!done) next(); }, 8000);
+
+  var viaEl = function(){
+    if (finished || triedEl) return;
+    triedEl = true;
+    var blob = b64ToBlob(it.a, it.m);
+    if (!blob){ LIVE_ERR = "المقطع وصل تالف"; next(); return; }
+    var url = "";
+    try{ url = URL.createObjectURL(blob); }catch(e){ viaCtx(); return; }
+    var el = null;
+    try{ el = new Audio(url); }catch(e){ viaCtx(); return; }
+    try{ el.volume = 1; }catch(e){}
+    var revoked = false;
+    var clean = function(){ if (revoked) return; revoked = true; try{ URL.revokeObjectURL(url); }catch(e){} };
+    el.onended = function(){ clean(); next(); };
+    el.onerror = function(){ clean(); viaCtx(); };
+    try{
+      var pr = el.play();
+      if (pr && pr.then){
+        pr.then(function(){ LIVE_PLAY++; LIVE_PATH = "عنصر صوت"; }, function(){
+          LIVE_ERR = "الجهاز رفض تشغيل الصوت";
+          clean(); viaCtx();
+        });
+      } else { LIVE_PLAY++; LIVE_PATH = "عنصر صوت"; }
+    }catch(e){ clean(); viaCtx(); return; }
+    setTimeout(function(){ if (!finished) next(); }, 12000);
+  };
+
+  viaEl();
 }
 /* اختبار الميكروفون على نفس الجهاز: بيسجل 3 ثواني وبيشغلها */
 function micTest(){
@@ -997,6 +1287,7 @@ function enterLive(m){
   go("room");
 }
 function exitLive(){
+  try{ if (RTC.on) rtcTeardown(true); }catch(e){}
   netLeave();
   S.online.room = null;
   S.online.joinId = "";
@@ -2122,7 +2413,7 @@ function staffRow(id,label,cost){
 SCREENS.branches = function(){
   var h = head("التوسع العالمي والفروع");
   h += card("خطة التطوير الإقليمي",
-    '<div class="small">افتحي فروع في مدن عالمية، وكل فرع بيجيب أرباح كل فترة.</div>'+
+    '<div class="small">افتحي فروع في مدن عالمية، وكل فرع بيجمع أرباح كل دقيقة — وما تنسيش تحصّليها، لأنها بتقف عند حد أقصى.</div>'+
     '<div class="kv"><span>عدد الفروع</span><b>'+S.branches.length+'</b></div>'
   );
   for (var i=0;i<CITIES.length;i++){
@@ -2752,6 +3043,18 @@ SCREENS.room = function(){
     b("تشخيص الصوت","go","voicediag","p bigbtn")+
     '<div class="small">اضغطي الاختبار، اتكلمي 3 ثواني — لو سمعتي صوتك يبقى المايك شغال، ولو مش سامعة نفسك المشكلة في إذن المايك في الإعدادات.</div>'
   );
+  var rtcTxt = RTC.state === "on" ? "شغالة دلوقتي — الصوت مفتوح بينكم"
+    : (RTC.state === "wait" ? "بتجرب توصل لصاحبتك…" : (RTC.lastErr ? RTC.lastErr : "مقفولة"));
+  h += card("المكالمة المباشرة (تجريبي)",
+    '<div class="kv"><span>الحالة</span><b>'+rtcTxt+'</b></div>'+
+    '<div class="small">دي غير المقاطع: الصوت يفضل مفتوح بينكم زي التليفون. بتنجح حسب الشبكة، ولو فشلت بترجع للمقاطع لوحدها.</div>'+
+    (room.live
+      ? (RTC.state === "off"
+          ? b("ابدئي مكالمة مباشرة","callStart",null,"p bigbtn")
+          : b("اقفلي المكالمة","callStop",null,"d bigbtn"))
+      : "")+
+    '<div class="small">محتاجة المايك مفتوح، ولازم تكوني انتي وصاحبتك بس في الطاولة.</div>'
+  );
 
   h += card("العبي جوه الطاولة",
     '<div class="small">كل أقسام المطعم شغالة وانتِ في الطاولة زي اللعب العادي بالظبط — اطبخي، خدمي الزبائن، واسمعي المطعم.</div>'+
@@ -3022,6 +3325,8 @@ SCREENS.voicediag = function(){
     '<div class="kv"><span>مقاطع اتبعتت</span><b>'+LIVE_SENT+'</b></div>'+
     '<div class="kv"><span>مقاطع وصلتلك</span><b>'+LIVE_RECV+'</b></div>'+
     '<div class="kv"><span>مقاطع اتشغلت</span><b>'+LIVE_PLAY+'</b></div>'+
+    (LIVE_PATH ? '<div class="kv"><span>طريقة التشغيل</span><b>'+LIVE_PATH+'</b></div>' : '')+
+    '<div class="kv"><span>المكالمة المباشرة</span><b>'+(RTC.state === "on" ? "شغالة" : (RTC.state === "wait" ? "بتحاول" : "مقفولة"))+'</b></div>'+
     (LIVE_ERR ? '<div class="small">آخر مشكلة: '+LIVE_ERR+'</div>' : '<div class="small">مفيش مشاكل مسجلة.</div>')
   );
   h += card("جرّبي بنفسك",
@@ -3663,6 +3968,50 @@ function act(a, arg, arg2){
     toast(S.fac.dishwasher > 0 ? "غسالة الصحون خلصت كل حاجة" : "الأطباق اتنضفت");
     fin(); return;
 
+  case "branchOpen":
+    var boi = parseInt(arg, 10); if (isNaN(boi)) boi = 0;
+    var bcost = 500 * (boi + 1);
+    for (var bq=0;bq<S.branches.length;bq++){
+      if (S.branches[bq].city === boi){ toast("فرع " + CITIES[boi] + " مفتوح خلاص"); return; }
+    }
+    if (!spend(bcost)) return;
+    S.branches.push({city:boi, lvl:1, last:Date.now()});
+    sfx("levelup");
+    toast("مبروك! افتحتي فرع " + CITIES[boi] + " — بيجمع أرباح كل دقيقة");
+    say("مبروك! فرع " + CITIES[boi] + " اتفتح");
+    checkAch(); save(); render(); return;
+
+  case "branchCollect":
+    var bci = parseInt(arg, 10); if (isNaN(bci)) bci = 0;
+    var bfind = null;
+    for (var bf=0;bf<S.branches.length;bf++) if (S.branches[bf].city === bci) bfind = S.branches[bf];
+    if (!bfind){ toast("الفرع ده مش مفتوح"); return; }
+    var bpend = branchPending(bfind);
+    if (bpend <= 0){ toast("لسه مفيش أرباح في فرع " + CITIES[bci] + " — استني شوية"); return; }
+    bfind.last = Date.now();
+    give("coin", bpend);
+    sfx("coin");
+    toast("اتحصّل " + fmtNum(bpend) + " عملة من فرع " + CITIES[bci]);
+    say("اتحصّل " + fmtNum(bpend) + " عملة من فرع " + CITIES[bci]);
+    fin(); return;
+
+  case "branchUp":
+    var bui = parseInt(arg, 10); if (isNaN(bui)) bui = 0;
+    var bup = null;
+    for (var bu=0;bu<S.branches.length;bu++) if (S.branches[bu].city === bui) bup = S.branches[bu];
+    if (!bup){ toast("افتحي الفرع الأول من زرار افتحي الفرع"); return; }
+    var blvl = bup.lvl || 1;
+    if (blvl >= 5){ toast("فرع " + CITIES[bui] + " وصل لأعلى مستوى"); return; }
+    var bucost = 400 * blvl;
+    if (!spend(bucost)) return;
+    var bkeep = branchPending(bup);
+    bup.last = Date.now();
+    bup.lvl = blvl + 1;
+    if (bkeep > 0) give("coin", bkeep);
+    sfx("levelup");
+    toast("فرع " + CITIES[bui] + " بقى مستوى " + bup.lvl + " — أرباحه بقت أكتر");
+    fin(); return;
+
   case "buyDish":
     var bd = dishById(String(arg));
     if (!bd){ toast("الطبق مش موجود"); return; }
@@ -4269,8 +4618,12 @@ function act(a, arg, arg2){
     fin(); return;
 
   case "oPTT":
+    if (RTC.on){ toast("انتي في مكالمة مباشرة — اقفليها الأول"); return; }
     if (PTT.on) pttStop(); else pttStart();
     return;
+
+  case "callStart": callStart(); return;
+  case "callStop": callStop(); return;
 
   case "oView":
     S.online.view = String(arg || "");
@@ -4763,7 +5116,7 @@ function act(a, arg, arg2){
 
   case "voiceTone": voiceTestTone(); return;
   case "voiceReset":
-    LIVE_SENT = 0; LIVE_RECV = 0; LIVE_PLAY = 0; LIVE_ERR = "";
+    LIVE_SENT = 0; LIVE_RECV = 0; LIVE_PLAY = 0; LIVE_ERR = ""; LIVE_PATH = "";
     toast("اتصفرت الأرقام"); fin(); return;
 
   case "micTest":
